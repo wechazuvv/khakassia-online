@@ -315,6 +315,15 @@ class SunnyKhakassiaApp {
     this.btnCloseReportModal = document.getElementById('btnCloseReportModal');
     this.btnCancelReport = document.getElementById('btnCancelReport');
 
+    // Share Post Modal
+    this.sharePostModal = document.getElementById('sharePostModal');
+    this.btnCloseShareModal = document.getElementById('btnCloseShareModal');
+    this.btnCancelShareModal = document.getElementById('btnCancelShareModal');
+    this.sharePostUrlInput = document.getElementById('sharePostUrlInput');
+    this.btnCopyShareUrl = document.getElementById('btnCopyShareUrl');
+    this.btnShareToGeneralChat = document.getElementById('btnShareToGeneralChat');
+    this.btnShareNativeMobile = document.getElementById('btnShareNativeMobile');
+
     // Admin Moderation Modal
     this.moderationModal = document.getElementById('moderationModal');
     this.moderationContent = document.getElementById('moderationContent');
@@ -622,7 +631,7 @@ class SunnyKhakassiaApp {
       let startX = 0;
       let isCancelled = false;
 
-      const handlePressStart = (e) => {
+      const handlePressStart = async (e) => {
         if (e.type === 'touchstart') {
           startX = e.touches[0].clientX;
         } else {
@@ -632,6 +641,13 @@ class SunnyKhakassiaApp {
         isRecording = false;
         isCancelled = false;
 
+        // Начинаем захват аудио/видео сразу по жесту пользователя, чтобы iOS Safari не блокировал права
+        if (this.chatMediaMode === 'voice') {
+          this.prepareVoiceStream();
+        } else {
+          this.initCameraStream();
+        }
+
         pressTimer = setTimeout(async () => {
           isRecording = true;
           if (this.chatMediaMode === 'video') {
@@ -640,7 +656,7 @@ class SunnyKhakassiaApp {
           } else {
             await this.startVoiceRecording();
           }
-        }, 280);
+        }, 250);
       };
 
       const handlePressMove = (e) => {
@@ -662,13 +678,18 @@ class SunnyKhakassiaApp {
         const pressDuration = Date.now() - pressStartTime;
         clearTimeout(pressTimer);
 
-        if (!isRecording && pressDuration < 280) {
+        if (!isRecording && pressDuration < 250) {
           // Одиночный тап: быстрое переключение между голосом и кружочком
           this.chatMediaMode = this.chatMediaMode === 'voice' ? 'video' : 'voice';
           if (this.mediaToggleIcon) {
             this.mediaToggleIcon.textContent = this.chatMediaMode === 'voice' ? '🎙️' : '📹';
           }
           this.showToast(this.chatMediaMode === 'voice' ? 'Режим: Голосовые сообщения 🎙️' : 'Режим: Видео-кружочки 📹', 'info');
+          // Если стрим был предварительно открыт, глушим его
+          if (this.pendingVoiceStream) {
+            this.pendingVoiceStream.getTracks().forEach(t => t.stop());
+            this.pendingVoiceStream = null;
+          }
         } else if (isRecording && !isCancelled) {
           // Отпустили зажатие: отправляем сообщение
           if (this.chatMediaMode === 'voice') {
@@ -765,6 +786,60 @@ class SunnyKhakassiaApp {
       this.btnChatBack.addEventListener('click', () => {
         const chatLayout = document.querySelector('.chat-layout');
         if (chatLayout) chatLayout.classList.remove('mobile-chat-open');
+        document.body.classList.remove('in-mobile-chat');
+      });
+    }
+
+    // Share Post Modal Events
+    if (this.btnCloseShareModal) {
+      this.btnCloseShareModal.addEventListener('click', () => {
+        if (this.sharePostModal) this.sharePostModal.classList.add('hidden');
+      });
+    }
+    if (this.btnCancelShareModal) {
+      this.btnCancelShareModal.addEventListener('click', () => {
+        if (this.sharePostModal) this.sharePostModal.classList.add('hidden');
+      });
+    }
+    if (this.btnCopyShareUrl) {
+      this.btnCopyShareUrl.addEventListener('click', () => {
+        if (!this.sharePostUrlInput) return;
+        this.sharePostUrlInput.select();
+        this.sharePostUrlInput.setSelectionRange(0, 99999);
+        try {
+          navigator.clipboard.writeText(this.sharePostUrlInput.value);
+        } catch(e) {
+          document.execCommand('copy');
+        }
+        this.showToast('Ссылка скопирована в буфер обмена! 📋', 'success');
+      });
+    }
+    if (this.btnShareToGeneralChat) {
+      this.btnShareToGeneralChat.addEventListener('click', () => {
+        const postUrl = this.sharePostUrlInput ? this.sharePostUrlInput.value : '';
+        if (postUrl && this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({
+            type: 'send_message',
+            channelId: 1,
+            content: `Посмотрите публикацию в ленте: ${postUrl}`
+          }));
+          this.showToast('Публикация отправлена в Общий чат! ☀️', 'success');
+          if (this.sharePostModal) this.sharePostModal.classList.add('hidden');
+        } else {
+          this.showToast('Ссылка: ' + postUrl, 'info');
+        }
+      });
+    }
+    if (this.btnShareNativeMobile) {
+      this.btnShareNativeMobile.addEventListener('click', () => {
+        const postUrl = this.sharePostUrlInput ? this.sharePostUrlInput.value : '';
+        if (navigator.share) {
+          navigator.share({
+            title: 'Хакасия Онлайн',
+            text: 'Публикация в сообществе «Хакасия Онлайн»',
+            url: postUrl
+          }).catch(() => {});
+        }
       });
     }
     if (this.btnDeleteCurrentChannel) {
@@ -1853,11 +1928,22 @@ class SunnyKhakassiaApp {
 
   sharePost(postId) {
     const url = `${window.location.origin}/#post-${postId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      this.showToast('Ссылка на публикацию скопирована! 🔗', 'success');
-    }).catch(() => {
-      this.showToast('Ссылка: ' + url, 'info');
-    });
+    if (this.sharePostUrlInput) {
+      this.sharePostUrlInput.value = url;
+    }
+    if (this.btnShareNativeMobile) {
+      this.btnShareNativeMobile.classList.toggle('hidden', !navigator.share);
+    }
+    if (this.sharePostModal) {
+      this.sharePostModal.classList.remove('hidden');
+    } else {
+      try {
+        navigator.clipboard.writeText(url);
+        this.showToast('Ссылка на публикацию скопирована! 🔗', 'success');
+      } catch(e) {
+        this.showToast('Ссылка: ' + url, 'info');
+      }
+    }
   }
 
   // =========================================================================
@@ -2071,6 +2157,35 @@ class SunnyKhakassiaApp {
       }
 
       activeUsers.forEach(u => {
+        const isSelf = this.currentUser && u.id === this.currentUser.id;
+        const isCreator = (u.username === 'wechazuv' || u.id === 1);
+        const isModerator = (u.role === 'admin' && !isCreator);
+
+        let roleBadge = '';
+        if (isCreator) {
+          roleBadge = '<span style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; font-size:0.75rem; font-weight:800; padding:2px 8px; border-radius:10px; margin-left:6px;">👑 СОЗДАТЕЛЬ</span>';
+        } else if (isModerator) {
+          roleBadge = '<span style="background:rgba(96, 165, 250, 0.2); color:#60a5fa; border:1px solid rgba(96, 165, 250, 0.4); font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:10px; margin-left:6px;">🛡️ МОДЕРАТОР</span>';
+        }
+
+        let actionBtns = '';
+        if (isSelf || isCreator) {
+          // У Создателя и у самого себя нельзя ничего снимать и изменять
+          actionBtns = `<span style="font-size:0.8rem; font-weight:700; color:var(--solar-gold); padding:4px 8px;">👑 Главный аккаунт</span>`;
+        } else {
+          actionBtns = `
+            <button class="btn-secondary btn-sm" onclick="app.toggleUserVerify(${u.id})">
+              ${u.is_verified ? 'Снять ✔️' : 'Выдать ✔️'}
+            </button>
+            <button class="btn-secondary btn-sm" onclick="app.toggleUserAdmin(${u.id})">
+              ${u.role === 'admin' ? 'Снять модератора' : '🛡️ Назначить модератором'}
+            </button>
+            <button class="btn-sm" style="background:var(--accent-red); color:#fff; border:none; border-radius:var(--radius-sm); padding:4px 8px; cursor:pointer;" onclick="app.banScammerUser(${u.id}, 'Мошенничество')">
+              🚫 Заблокировать
+            </button>
+          `;
+        }
+
         html += `
           <div class="admin-user-row">
             <div class="admin-user-info">
@@ -2079,23 +2194,13 @@ class SunnyKhakassiaApp {
                 <strong onclick="app.openUserProfile('${u.username}')" style="cursor:pointer;">
                   ${this.escapeHTML(u.display_name)}
                   ${u.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
-                  ${u.role === 'admin' ? '<span style="color:var(--solar-gold); font-size:0.75rem; font-weight:800; margin-left:4px;">👑 АДМИН</span>' : ''}
+                  ${roleBadge}
                 </strong>
                 <div style="font-size:0.78rem; color:var(--text-dim);">@${this.escapeHTML(u.username)} • 📍 ${this.escapeHTML(u.city || 'Абакан')}</div>
               </div>
             </div>
             <div class="admin-user-btns">
-              <button class="btn-secondary btn-sm" onclick="app.toggleUserVerify(${u.id})">
-                ${u.is_verified ? 'Снять ✔️' : 'Выдать ✔️'}
-              </button>
-              ${u.id !== this.currentUser.id ? `
-                <button class="btn-secondary btn-sm" onclick="app.toggleUserAdmin(${u.id})">
-                  ${u.role === 'admin' ? 'Снять админа' : '👑 Сделать админом'}
-                </button>
-                <button class="btn-sm" style="background:var(--accent-red); color:#fff; border:none; border-radius:var(--radius-sm); padding:4px 8px; cursor:pointer;" onclick="app.banScammerUser(${u.id}, 'Мошенничество')">
-                  🚫 Заблокировать
-                </button>
-              ` : ''}
+              ${actionBtns}
             </div>
           </div>
         `;
@@ -2958,6 +3063,10 @@ class SunnyKhakassiaApp {
   openGeneralChat() {
     this.currentChatChannelId = 1;
     this.currentChatDmUserId = null;
+    const chatLayout = document.querySelector('.chat-layout');
+    if (chatLayout) chatLayout.classList.add('mobile-chat-open');
+    document.body.classList.add('in-mobile-chat');
+
     document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
     if (this.chatGeneralChannelBtn) this.chatGeneralChannelBtn.classList.add('active');
     this.chatActiveIcon.textContent = '☀️';
@@ -2970,13 +3079,14 @@ class SunnyKhakassiaApp {
   updateChatHeaderActions() {
     const chatLayout = document.querySelector('.chat-layout');
     if (chatLayout) chatLayout.classList.add('mobile-chat-open');
+    document.body.classList.add('in-mobile-chat');
 
     if (this.currentChatDmUserId) {
       if (this.btnGoGeneralChat) this.btnGoGeneralChat.classList.remove('hidden');
       if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.add('hidden');
       if (this.btnDeleteCurrentChannel) this.btnDeleteCurrentChannel.classList.add('hidden');
       if (this.btnClearDmHistory) this.btnClearDmHistory.classList.remove('hidden');
-    } else if (this.currentChatChannelId === 1) {
+    } else if (Number(this.currentChatChannelId) === 1) {
       if (this.btnGoGeneralChat) this.btnGoGeneralChat.classList.add('hidden');
       if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.remove('hidden');
       if (this.btnDeleteCurrentChannel) this.btnDeleteCurrentChannel.classList.add('hidden');
@@ -2986,11 +3096,12 @@ class SunnyKhakassiaApp {
       if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.remove('hidden');
       if (this.btnClearDmHistory) this.btnClearDmHistory.classList.add('hidden');
 
-      const currentChannel = (this.channels || []).find(c => c.id === this.currentChatChannelId);
-      const isCreatorOrAdmin = this.currentUser && currentChannel && (
-        currentChannel.created_by === this.currentUser.id || 
+      const currentChannel = (this.channels || []).find(c => Number(c.id) === Number(this.currentChatChannelId));
+      const isCreatorOrAdmin = this.currentUser && (
         this.currentUser.role === 'admin' || 
-        this.currentUser.username === 'wechazuv'
+        this.currentUser.username === 'wechazuv' ||
+        this.currentUser.id === 1 ||
+        (currentChannel && Number(currentChannel.created_by) === Number(this.currentUser.id))
       );
       if (this.btnDeleteCurrentChannel) {
         this.btnDeleteCurrentChannel.classList.toggle('hidden', !isCreatorOrAdmin);
@@ -3607,13 +3718,30 @@ class SunnyKhakassiaApp {
   }
 
   // Voice recording
+  async prepareVoiceStream() {
+    if (this.pendingVoiceStream && this.pendingVoiceStream.active) return this.pendingVoiceStream;
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        this.pendingVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return this.pendingVoiceStream;
+      }
+    } catch(e) {
+      console.warn('prepareVoiceStream gesture capture:', e);
+    }
+    return null;
+  }
+
   async startVoiceRecording() {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        this.showToast('Микрофон недоступен в данном браузере', 'error');
-        return;
+      let stream = this.pendingVoiceStream;
+      if (!stream || !stream.active) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          this.showToast('Микрофон недоступен в данном браузере', 'error');
+          return;
+        }
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.pendingVoiceStream = null;
       this.audioChunks = [];
       this.voiceStream = stream;
 
@@ -3644,7 +3772,12 @@ class SunnyKhakassiaApp {
         if (this.recordingTimer) this.recordingTimer.textContent = `${m}:${s}`;
       }, 1000);
     } catch (err) {
-      this.showToast('Не удалось получить доступ к микрофону: ' + err.message, 'error');
+      console.error('startVoiceRecording error:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        this.showToast('Доступ к микрофону заблокирован. Разрешите микрофон в настройках браузера или используйте защищённую ссылку https://khakassia-online.onrender.com', 'warning');
+      } else {
+        this.showToast('Не удалось получить доступ к микрофону: ' + err.message, 'error');
+      }
     }
   }
 
@@ -4700,7 +4833,9 @@ class SunnyKhakassiaApp {
     item.className = `track-item ${isPlaying ? 'playing' : ''}`;
     item.id = `track-item-${track.id}`;
 
-    const coverHtml = track.cover_url ? `<img src="${this.escapeHTML(track.cover_url)}" class="track-cover-thumb" alt="Обложка">` : '';
+    const coverHtml = track.cover_url 
+      ? `<img src="${this.escapeHTML(track.cover_url)}" class="track-cover-thumb" alt="Обложка" onerror="this.outerHTML='<div class=\\\'track-cover-thumb default-cover\\\'>🎵</div>'">` 
+      : `<div class="track-cover-thumb default-cover">🎵</div>`;
 
     item.innerHTML = `
       <button type="button" class="track-play-btn" title="Слушать">
@@ -4714,8 +4849,8 @@ class SunnyKhakassiaApp {
       <span class="track-genre-tag">${this.escapeHTML(track.genre || 'Музыка')}</span>
       <span style="font-size:0.75rem; color:var(--text-dim); flex-shrink:0;">${this.escapeHTML(track.duration || '03:15')}</span>
       <div class="track-actions">
-        <button type="button" class="track-btn-save ${track.is_saved ? 'saved' : ''}" title="${track.is_saved ? 'Удалить из сохранённых' : 'Сохранить в Мои треки'}">
-          ${track.is_saved ? '⭐ Сохранено' : '🤍 В сохранённые'}
+        <button type="button" class="track-btn-save-heart ${track.is_saved ? 'saved' : ''}" title="${track.is_saved ? 'В вашей музыке (нажмите, чтобы удалить)' : 'Сохранить в мою музыку'}">
+          ${track.is_saved ? '❤️' : '🤍'}
         </button>
         <button type="button" class="track-btn-anthem" title="Поставить аудиозапись в статус профиля (как в Telegram)">
           🎵 В статус
@@ -4733,7 +4868,7 @@ class SunnyKhakassiaApp {
       }
     };
 
-    const btnSave = item.querySelector('.track-btn-save');
+    const btnSave = item.querySelector('.track-btn-save-heart');
     btnSave.onclick = (e) => {
       e.stopPropagation();
       this.toggleSaveTrack(track, btnSave);
@@ -4756,7 +4891,10 @@ class SunnyKhakassiaApp {
     if (this.globalMusicPlayer) this.globalMusicPlayer.classList.remove('hidden');
     if (this.playerTrackTitle) this.playerTrackTitle.textContent = track.title;
     if (this.playerTrackArtist) this.playerTrackArtist.textContent = track.artist;
-    if (this.playerBtnSave) this.playerBtnSave.textContent = track.is_saved ? '⭐' : '🤍';
+    if (this.playerBtnSave) {
+      this.playerBtnSave.textContent = track.is_saved ? '❤️' : '🤍';
+      this.playerBtnSave.title = track.is_saved ? 'В вашей музыке (нажмите, чтобы удалить)' : 'Сохранить в мою музыку';
+    }
 
     this.audioPlayer.src = track.audio_url;
     this.audioPlayer.play().catch(e => console.warn('Audio play error:', e));
@@ -4815,17 +4953,19 @@ class SunnyKhakassiaApp {
         track.is_online = false;
 
         if (btnEl) {
-          btnEl.textContent = '⭐ Сохранено';
+          btnEl.textContent = '❤️';
+          btnEl.title = 'В вашей музыке (нажмите, чтобы удалить)';
           btnEl.classList.add('saved');
         }
         if (this.playerBtnSave && this.currentPlayingTrack && (this.currentPlayingTrack.audio_url === track.audio_url)) {
-          this.playerBtnSave.textContent = '⭐ В сохранённых';
+          this.playerBtnSave.textContent = '❤️';
+          this.playerBtnSave.title = 'В вашей музыке (нажмите, чтобы удалить)';
           this.playerBtnSave.classList.add('saved');
         }
         if (this.profileStatMusicCount && data.count !== undefined) {
           this.profileStatMusicCount.textContent = data.count;
         }
-        this.showToast(`Трек "${track.title}" сохранён в вашу музыку! ⭐`, 'success');
+        this.showToast(`Трек "${track.title}" сохранён в вашу музыку! ❤️`, 'success');
         if (this.currentTab === 'profile' && this.currentUser && this.activeProfileUser && this.currentUser.id === this.activeProfileUser.id) {
           this.loadUserMusic(this.currentUser.id);
         }
@@ -4843,11 +4983,13 @@ class SunnyKhakassiaApp {
 
       track.is_saved = !isSaved;
       if (btnEl) {
-        btnEl.textContent = track.is_saved ? '⭐ Сохранено' : '🤍 В сохранённые';
+        btnEl.textContent = track.is_saved ? '❤️' : '🤍';
+        btnEl.title = track.is_saved ? 'В вашей музыке (нажмите, чтобы удалить)' : 'Сохранить в мою музыку';
         btnEl.classList.toggle('saved', track.is_saved);
       }
       if (this.playerBtnSave && this.currentPlayingTrack && (this.currentPlayingTrack.id === track.id || this.currentPlayingTrack.audio_url === track.audio_url)) {
-        this.playerBtnSave.textContent = track.is_saved ? '⭐ В сохранённых' : '🤍 В сохранённые';
+        this.playerBtnSave.textContent = track.is_saved ? '❤️' : '🤍';
+        this.playerBtnSave.title = track.is_saved ? 'В вашей музыке (нажмите, чтобы удалить)' : 'Сохранить в мою музыку';
         this.playerBtnSave.classList.toggle('saved', track.is_saved);
       }
       if (this.profileStatMusicCount && data.count !== undefined) {
@@ -5076,19 +5218,37 @@ class SunnyKhakassiaApp {
 
   switchProfileSubtab(tab) {
     document.querySelectorAll('.profile-subtab').forEach(b => b.classList.remove('active'));
-    this.profilePostsSubcontent.classList.add('hidden');
-    this.profileFriendsSubcontent.classList.add('hidden');
-    if (this.profileMusicSubcontent) this.profileMusicSubcontent.classList.add('hidden');
+    if (this.profilePostsSubcontent) {
+      this.profilePostsSubcontent.classList.add('hidden');
+      this.profilePostsSubcontent.style.display = 'none';
+    }
+    if (this.profileFriendsSubcontent) {
+      this.profileFriendsSubcontent.classList.add('hidden');
+      this.profileFriendsSubcontent.style.display = 'none';
+    }
+    if (this.profileMusicSubcontent) {
+      this.profileMusicSubcontent.classList.add('hidden');
+      this.profileMusicSubcontent.style.display = 'none';
+    }
 
     if (tab === 'posts') {
-      this.subtabPosts.classList.add('active');
-      this.profilePostsSubcontent.classList.remove('hidden');
+      if (this.subtabPosts) this.subtabPosts.classList.add('active');
+      if (this.profilePostsSubcontent) {
+        this.profilePostsSubcontent.classList.remove('hidden');
+        this.profilePostsSubcontent.style.display = 'block';
+      }
     } else if (tab === 'friends') {
-      this.subtabFriends.classList.add('active');
-      this.profileFriendsSubcontent.classList.remove('hidden');
+      if (this.subtabFriends) this.subtabFriends.classList.add('active');
+      if (this.profileFriendsSubcontent) {
+        this.profileFriendsSubcontent.classList.remove('hidden');
+        this.profileFriendsSubcontent.style.display = 'block';
+      }
     } else if (tab === 'music') {
       if (this.subtabMusic) this.subtabMusic.classList.add('active');
-      if (this.profileMusicSubcontent) this.profileMusicSubcontent.classList.remove('hidden');
+      if (this.profileMusicSubcontent) {
+        this.profileMusicSubcontent.classList.remove('hidden');
+        this.profileMusicSubcontent.style.display = 'block';
+      }
       if (this.activeProfileUser) {
         this.loadUserMusic(this.activeProfileUser.id);
       }

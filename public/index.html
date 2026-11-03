@@ -9,6 +9,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
+  <script>
+    // Замена назойливых браузерных alert() окон на аккуратные всплывающие тосты
+    window.alert = function(msg) {
+      if (window.app && typeof window.app.showToast === 'function') {
+        window.app.showToast(msg, 'info');
+      } else {
+        console.log('[Notice]', msg);
+      }
+    };
+  </script>
 </head>
 <body>
   <div id="app" class="app-container">
@@ -400,7 +410,9 @@
                 <textarea 
                   id="chatMessageInput" 
                   rows="1" 
-                  placeholder="Написать в чат... (Enter для отправки)"
+                  placeholder="Написать в чат..."
+                  autocomplete="off"
+                  spellcheck="false"
                 ></textarea>
                 <button type="button" class="btn-media-toggle" id="btnMediaToggle" title="Нажмите, чтобы переключить (🎙️/📹), зажмите для записи">
                   <span id="mediaToggleIcon">🎙️</span>
@@ -531,7 +543,8 @@
         <div class="profile-layout">
           <div class="profile-header-card">
             <div class="profile-cover" id="profileCoverContainer">
-              <img src="/images/khakassia-banner.jpg" alt="Хакасия" class="profile-cover-img" id="profileCoverImg">
+              <img src="/images/khakassia-banner.jpg" alt="Хакасия" class="profile-cover-img" id="profileCoverImg" data-image-search="false" data-disable-image-search="true" data-smart-button="false" draggable="false">
+              <div class="profile-cover-overlay"></div>
               <div class="cover-buttons-group">
                 <button type="button" class="btn-change-cover hidden" id="btnChangeCover" title="Сменить обложку профиля (фото или GIF)">
                   🖼️ Сменить обложку
@@ -1097,6 +1110,39 @@
         <button type="button" class="btn-secondary hidden" id="btnRetakeCircleRec">🔄 Перезаписать</button>
         <button type="button" class="btn-secondary" id="btnShootCircleNative" style="background: #0077ff; color: #fff;">📱 Камера телефона</button>
         <button type="button" class="btn-secondary" id="btnPickCircleFile" title="Выбрать видеофайл с устройства">📁 Выбрать файл</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARE POST MODAL -->
+  <div class="modal-backdrop hidden" id="sharePostModal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>🔗 Поделиться публикацией</h3>
+        <button type="button" class="btn-icon-sm" id="btnCloseShareModal">✕</button>
+      </div>
+      <div style="padding: 10px 0;">
+        <div class="form-group">
+          <label>Прямая ссылка</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="sharePostUrlInput" readonly style="flex: 1; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); font-size: 0.88rem;">
+            <button type="button" class="btn-primary" id="btnCopyShareUrl" style="flex-shrink: 0;">📋 Копировать</button>
+          </div>
+        </div>
+        <div style="margin-top: 16px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 8px;">Быстрая отправка в беседу</label>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button type="button" class="btn-secondary" id="btnShareToGeneralChat" style="justify-content: flex-start; gap: 10px; padding: 10px 14px;">
+              <span>☀️</span> Отправить в «Общий чат Хакасии»
+            </button>
+            <button type="button" class="btn-secondary hidden" id="btnShareNativeMobile" style="justify-content: flex-start; gap: 10px; padding: 10px 14px;">
+              <span>📱</span> Отправить через телефон (WhatsApp, Telegram...)
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="btnCancelShareModal">Закрыть</button>
       </div>
     </div>
   </div>

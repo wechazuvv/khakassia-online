@@ -92,10 +92,30 @@ const upload = multer({
 });
 
 app.use(express.json());
+
+// HTTPS Redirect & Security Headers
+app.use((req, res, next) => {
+  const proto = req.headers['x-forwarded-proto'];
+  if (proto && proto === 'http') {
+    return res.redirect(301, 'https://' + req.headers.host + req.url);
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Permissions-Policy', 'microphone=(self "https://khakassia-online.onrender.com" "http://khakassia-online.ru" "http://localhost:*"), camera=(self "https://khakassia-online.onrender.com" "http://khakassia-online.ru" "http://localhost:*")');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadsDir));
 
 // Helper: Format user object for public response
+function formatJoinDate(createdAt) {
+  if (!createdAt) return 'Житель Хакасии ☀️';
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return 'Житель Хакасии ☀️';
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  return `В сообществе с ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} г.`;
+}
+
 function sanitizeUser(u) {
   if (!u) return null;
   return {
@@ -117,7 +137,9 @@ function sanitizeUser(u) {
     is_banned: Boolean(u.is_banned),
     role: u.role || 'user',
     status: u.is_banned ? 'offline' : (u.status || 'offline'),
-    status_text: u.is_banned ? '🚫 Заблокирован за нарушения' : (u.status_text || ''),
+    status_text: u.is_banned ? '🚫 Заблокирован за нарушения' : (
+      (u.status_text && u.status_text !== 'Только что присоединился') ? u.status_text : formatJoinDate(u.created_at)
+    ),
     created_at: u.created_at,
     last_seen: u.last_seen
   };
@@ -1157,8 +1179,14 @@ app.post('/api/admin/unban/:userId', authMiddleware, adminMiddleware, (req, res)
 // 5. Выдать / снять отметку проверенного пользователя / официального лица
 app.post('/api/admin/verify/:userId', authMiddleware, adminMiddleware, (req, res) => {
   const targetId = Number(req.params.userId);
-  const user = db.prepare('SELECT is_verified FROM users WHERE id = ?').get(targetId);
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: 'Нельзя изменить верификацию собственному аккаунту' });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (user.username === 'wechazuv' || user.id === 1) {
+    return res.status(400).json({ error: 'Нельзя снять верификацию с Создателя портала' });
+  }
 
   const newVerified = user.is_verified ? 0 : 1;
   db.prepare('UPDATE users SET is_verified = ? WHERE id = ?').run(newVerified, targetId);
@@ -1172,15 +1200,18 @@ app.post('/api/admin/verify/:userId', authMiddleware, adminMiddleware, (req, res
   res.json({ success: true, is_verified: Boolean(newVerified), message: newVerified ? 'Отметка верификации выдана.' : 'Отметка верификации снята.' });
 });
 
-// 6. Назначить / снять права администратора
+// 6. Назначить / снять права модератора
 app.post('/api/admin/toggle-admin/:userId', authMiddleware, adminMiddleware, (req, res) => {
   const targetId = Number(req.params.userId);
   if (targetId === req.user.id) {
     return res.status(400).json({ error: 'Нельзя изменить права собственному аккаунту' });
   }
 
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(targetId);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (user.username === 'wechazuv' || user.id === 1) {
+    return res.status(400).json({ error: 'Нельзя изменить статус Создателю портала' });
+  }
 
   const newRole = user.role === 'admin' ? 'user' : 'admin';
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, targetId);
@@ -1191,7 +1222,8 @@ app.post('/api/admin/toggle-admin/:userId', authMiddleware, adminMiddleware, (re
     user: sanitizeUser(updated)
   });
 
-  res.json({ success: true, role: newRole, message: `Роль изменена на ${newRole}` });
+  const msg = newRole === 'admin' ? 'Назначен модератором 🛡️' : 'Снят с должности модератора';
+  res.json({ success: true, role: newRole, message: msg });
 });
 
 // 7. Список всех жителей для панели модератора
@@ -1654,6 +1686,29 @@ app.get('/api/music', authMiddleware, (req, res) => {
 });
 
 // Helper: Поиск полноценных MP3 треков (без 30-секундного ограничения)
+const trackArtworkCache = new Map();
+
+async function getTrackArtwork(artist, title) {
+  const cacheKey = (artist + '|' + title).toLowerCase();
+  if (trackArtworkCache.has(cacheKey)) return trackArtworkCache.get(cacheKey);
+  try {
+    const q = `${artist} ${title}`.trim();
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=1`, {
+      signal: AbortSignal.timeout(2000)
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.results && data.results.length > 0 && data.results[0].artworkUrl100) {
+        const cover = data.results[0].artworkUrl100.replace('100x100bb', '600x600bb');
+        trackArtworkCache.set(cacheKey, cover);
+        return cover;
+      }
+    }
+  } catch(e){}
+  trackArtworkCache.set(cacheKey, null);
+  return null;
+}
+
 async function fetchMp3BobTracks(query, limit = 15) {
   try {
     const res = await fetch('https://mp3bob.ru/index.php?do=search&subaction=search&story=' + encodeURIComponent(query), {
@@ -1675,13 +1730,20 @@ async function fetchMp3BobTracks(query, limit = 15) {
         title: cleanTitle,
         artist: cleanArtist,
         audio_url: streamUrl,
-        cover_url: '/images/khakassia-banner.jpg',
+        cover_url: '',
         duration: '03:30',
         genre: 'Хит',
         is_online: true,
         uploader_name: 'Полный трек'
       });
     }
+
+    // Подгружаем оригинальные официальные обложки треков (параллельно до 12 треков)
+    await Promise.all(tracks.slice(0, 12).map(async (t) => {
+      const cover = await getTrackArtwork(t.artist, t.title);
+      if (cover) t.cover_url = cover;
+    }));
+
     return tracks;
   } catch (err) {
     console.warn('mp3bob search error:', err.message);

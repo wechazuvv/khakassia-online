@@ -283,7 +283,7 @@ function initDatabase() {
   try {
     db.prepare("UPDATE users SET display_name = 'Алиса' WHERE username = 'alice' AND display_name LIKE '%?%'").run();
     db.prepare("UPDATE users SET display_name = 'Боб' WHERE username = 'bob' AND display_name LIKE '%?%'").run();
-    db.prepare("UPDATE users SET status_text = 'В сообществе с 3 ноября 2026' WHERE status_text = 'Только что присоединился' OR status_text = ''").run();
+    db.prepare("UPDATE users SET status_text = 'В сообществе с 3 ноября 2026 г.' WHERE status_text = 'Только что присоединился' OR status_text = '' OR status_text IS NULL").run();
   } catch (e) {}
 
   // Ensure default channels exist
