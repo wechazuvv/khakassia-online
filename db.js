@@ -270,6 +270,22 @@ function initDatabase() {
     );
   `);
 
+  try {
+    db.exec("PRAGMA journal_mode = WAL;");
+  } catch (e) {}
+
+  // Миграция: поле номера телефона для регистрации
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN phone TEXT;");
+  } catch (e) {}
+
+  // Очистка кодировки и устаревших статусов
+  try {
+    db.prepare("UPDATE users SET display_name = 'Алиса' WHERE username = 'alice' AND display_name LIKE '%?%'").run();
+    db.prepare("UPDATE users SET display_name = 'Боб' WHERE username = 'bob' AND display_name LIKE '%?%'").run();
+    db.prepare("UPDATE users SET status_text = 'В сообществе с 3 ноября 2026' WHERE status_text = 'Только что присоединился' OR status_text = ''").run();
+  } catch (e) {}
+
   // Ensure default channels exist
   const generalChannel = db.prepare('SELECT id FROM channels WHERE slug = ?').get('general');
   if (!generalChannel) {

@@ -1179,6 +1179,51 @@ a {
   color: var(--text-dim);
   padding-top: 4px;
 }
+.chat-typing-line:empty {
+  display: none !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.btn-media-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--solar-gold);
+  color: #111;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.btn-media-toggle:active {
+  transform: scale(0.92);
+}
+.btn-media-toggle.recording {
+  background: var(--accent-red);
+  color: #fff;
+  animation: pulse-ring 1.2s infinite;
+}
+
+.profile-joined-date {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+}
 
 /* ==========================================================================
    TAB 3: FRIENDS & COMMUNITY
@@ -2737,6 +2782,21 @@ a {
   .chat-video-circle-wrap {
     width: 170px !important;
     height: 170px !important;
+  }
+
+  /* Устранение пустоты под клавиатурой и идеальный нативный масштаб на телефоне */
+  .chat-input-area {
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .chat-input-form {
+    gap: 6px !important;
+    padding: 6px 8px !important;
+  }
+  #chatMessageInput, input, textarea, select {
+    font-size: 16px !important;
+  }
+  .chat-messages-container {
+    padding: 10px 10px !important;
   }
 
   .feed-layout, .friends-layout, .profile-container, .music-layout {

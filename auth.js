@@ -27,7 +27,7 @@ function createSession(userId) {
 function getUserByToken(token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.avatar, u.banner, u.city, u.bio, 
+    SELECT u.id, u.username, u.display_name, u.avatar, u.banner, u.city, u.bio, u.phone,
            u.favorite_place, u.telegram, u.birth_date, u.is_private, u.profile_music, u.cover_position,
            u.status, u.status_text, u.is_banned, u.ban_reason, u.is_verified, u.role,
            u.created_at, u.last_seen

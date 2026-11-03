@@ -141,13 +141,18 @@ class SunnyKhakassiaApp {
     this.activeSearch = null;
     this.activeLocation = null;
 
-    // Voice Chat DOM
-    this.btnChatVoice = document.getElementById('btnChatVoice');
+    // Voice & Video Chat DOM (Telegram Style)
+    this.btnMediaToggle = document.getElementById('btnMediaToggle');
+    this.mediaToggleIcon = document.getElementById('mediaToggleIcon');
+    this.chatMediaMode = 'voice'; // 'voice' or 'video'
+    this.btnChatSend = document.getElementById('btnChatSend');
     this.voiceRecordingBar = document.getElementById('voiceRecordingBar');
     this.recordingTimer = document.getElementById('recordingTimer');
     this.btnCancelVoice = document.getElementById('btnCancelVoice');
     this.btnSendVoice = document.getElementById('btnSendVoice');
     this.mediaRecorder = null;
+    this.voiceStream = null;
+    this.voiceMimeType = '';
     this.audioChunks = [];
     this.recordTimer = null;
     this.recordSeconds = 0;
@@ -168,6 +173,7 @@ class SunnyKhakassiaApp {
     this.profileBannedBadge = document.getElementById('profileBannedBadge');
     this.profileCity = document.getElementById('profileCity');
     this.profileStatusText = document.getElementById('profileStatusText');
+    this.profileJoinedDate = document.getElementById('profileJoinedDate');
     this.profileBio = document.getElementById('profileBio');
     this.profileDetailPlace = document.getElementById('profileDetailPlace');
     this.profilePlaceVal = document.getElementById('profilePlaceVal');
@@ -311,8 +317,10 @@ class SunnyKhakassiaApp {
     this.btnCloseModerationModal = document.getElementById('btnCloseModerationModal');
     this.adminTabReports = document.getElementById('adminTabReports');
     this.adminTabUsers = document.getElementById('adminTabUsers');
+    this.adminTabBanned = document.getElementById('adminTabBanned');
     this.adminTabStats = document.getElementById('adminTabStats');
     this.adminPendingCount = document.getElementById('adminPendingCount');
+    this.adminBannedCount = document.getElementById('adminBannedCount');
     this.currentAdminTab = 'reports';
 
     // External Link Warning Modal
@@ -502,6 +510,9 @@ class SunnyKhakassiaApp {
     this.btnCloseModerationModal.addEventListener('click', () => this.moderationModal.classList.add('hidden'));
     this.adminTabReports.addEventListener('click', () => this.openModerationModal('reports'));
     this.adminTabUsers.addEventListener('click', () => this.openModerationModal('users'));
+    if (this.adminTabBanned) {
+      this.adminTabBanned.addEventListener('click', () => this.openModerationModal('banned'));
+    }
     this.adminTabStats.addEventListener('click', () => this.openModerationModal('stats'));
 
     // Feed Create Post with Poll & Location
@@ -570,10 +581,63 @@ class SunnyKhakassiaApp {
       });
     }
 
-    // Voice Recording in Chat
-    this.btnChatVoice.addEventListener('click', () => this.startVoiceRecording());
-    this.btnCancelVoice.addEventListener('click', () => this.cancelVoiceRecording());
-    this.btnSendVoice.addEventListener('click', () => this.sendVoiceRecording());
+    // Voice & Video Media Toggle in Chat (Telegram UX: tap to switch, hold to record)
+    if (this.btnCancelVoice) {
+      this.btnCancelVoice.addEventListener('click', () => this.cancelVoiceRecording());
+    }
+    if (this.btnSendVoice) {
+      this.btnSendVoice.addEventListener('click', () => this.sendVoiceRecording());
+    }
+
+    if (this.chatMessageInput) {
+      this.chatMessageInput.addEventListener('input', () => {
+        const hasText = this.chatMessageInput.value.trim().length > 0;
+        if (this.btnMediaToggle) this.btnMediaToggle.classList.toggle('hidden', hasText);
+        if (this.btnChatSend) this.btnChatSend.classList.toggle('hidden', !hasText);
+      });
+    }
+
+    if (this.btnMediaToggle) {
+      let pressTimer = null;
+      let isLongPress = false;
+
+      const onStart = (e) => {
+        if (e.type === 'touchstart') e.preventDefault();
+        isLongPress = false;
+        pressTimer = setTimeout(() => {
+          isLongPress = true;
+          if (this.chatMediaMode === 'video') {
+            this.openVideoCircleModal();
+            setTimeout(() => this.startCircleRecording(), 350);
+          } else {
+            this.startVoiceRecording();
+          }
+        }, 350);
+      };
+
+      const onEnd = () => {
+        clearTimeout(pressTimer);
+        if (!isLongPress) {
+          // Single tap: toggle between voice and video
+          this.chatMediaMode = this.chatMediaMode === 'voice' ? 'video' : 'voice';
+          if (this.mediaToggleIcon) {
+            this.mediaToggleIcon.textContent = this.chatMediaMode === 'voice' ? '🎙️' : '📹';
+          }
+          this.showToast(this.chatMediaMode === 'voice' ? 'Режим: Голосовые сообщения 🎙️' : 'Режим: Видео-кружочки 📹', 'info');
+        } else {
+          // Hold released: send voice recording
+          if (this.chatMediaMode === 'voice') {
+            this.sendVoiceRecording();
+          }
+        }
+      };
+
+      this.btnMediaToggle.addEventListener('mousedown', onStart);
+      this.btnMediaToggle.addEventListener('mouseup', onEnd);
+      this.btnMediaToggle.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+      this.btnMediaToggle.addEventListener('touchstart', onStart, { passive: false });
+      this.btnMediaToggle.addEventListener('touchend', onEnd);
+    }
 
     // Video Circles in Chat (Кружочки как в Telegram)
     if (this.btnChatCircle) {
@@ -743,6 +807,39 @@ class SunnyKhakassiaApp {
     this.linkSwitchToLogin.addEventListener('click', (e) => { e.preventDefault(); this.switchAuthTab('login'); });
     this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
     this.registerForm.addEventListener('submit', (e) => this.handleRegister(e));
+
+    const regPhoneEl = document.getElementById('regPhone');
+    if (regPhoneEl) {
+      regPhoneEl.addEventListener('input', (e) => {
+        let x = e.target.value.replace(/\D/g, '');
+        if (x.startsWith('7') || x.startsWith('8')) x = x.substring(1);
+        x = x.substring(0, 10);
+        let res = '+7';
+        if (x.length > 0) res += ' (' + x.substring(0, 3);
+        if (x.length >= 3) res += ') ' + x.substring(3, 6);
+        if (x.length >= 6) res += '-' + x.substring(6, 8);
+        if (x.length >= 8) res += '-' + x.substring(8, 10);
+        e.target.value = res;
+      });
+    }
+
+    const loginUserEl = document.getElementById('loginUsername');
+    if (loginUserEl) {
+      loginUserEl.addEventListener('input', (e) => {
+        const val = e.target.value;
+        if (val.startsWith('+7') || (val.startsWith('8') && /^\d+$/.test(val.replace(/\s+/g, '')))) {
+          let x = val.replace(/\D/g, '');
+          if (x.startsWith('7') || x.startsWith('8')) x = x.substring(1);
+          x = x.substring(0, 10);
+          let res = '+7';
+          if (x.length > 0) res += ' (' + x.substring(0, 3);
+          if (x.length >= 3) res += ') ' + x.substring(3, 6);
+          if (x.length >= 6) res += '-' + x.substring(6, 8);
+          if (x.length >= 8) res += '-' + x.substring(8, 10);
+          e.target.value = res;
+        }
+      });
+    }
 
     document.getElementById('regAvatarPresets').addEventListener('click', (e) => {
       const opt = e.target.closest('.avatar-option');
@@ -1803,12 +1900,15 @@ class SunnyKhakassiaApp {
 
     this.adminTabReports.classList.toggle('active', tab === 'reports');
     this.adminTabUsers.classList.toggle('active', tab === 'users');
+    if (this.adminTabBanned) this.adminTabBanned.classList.toggle('active', tab === 'banned');
     this.adminTabStats.classList.toggle('active', tab === 'stats');
 
     if (tab === 'reports') {
       this.renderAdminReports();
     } else if (tab === 'users') {
       this.renderAdminUsers();
+    } else if (tab === 'banned') {
+      this.renderAdminBanned();
     } else if (tab === 'stats') {
       this.renderAdminStats();
     }
@@ -1870,16 +1970,23 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      const users = data.users || [];
+      const allUsers = data.users || [];
+      const activeUsers = allUsers.filter(u => !u.is_banned);
+      const bannedUsers = allUsers.filter(u => u.is_banned);
+      if (this.adminBannedCount) this.adminBannedCount.textContent = bannedUsers.length;
 
       let html = `
         <div style="margin-bottom:12px;">
-          <input type="text" placeholder="Поиск жителя по нику или имени..." style="width:100%; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-input); color:var(--text-main);" oninput="app.renderAdminUsers(this.value)" value="${this.escapeHTML(q)}">
+          <input type="text" placeholder="Поиск жителя Хакасии по нику или имени..." style="width:100%; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-input); color:var(--text-main);" oninput="app.renderAdminUsers(this.value)" value="${this.escapeHTML(q)}">
         </div>
         <div class="admin-users-list">
       `;
 
-      users.forEach(u => {
+      if (activeUsers.length === 0) {
+        html += '<div style="color:var(--text-dim); padding:20px; text-align:center;">Жителей не найдено.</div>';
+      }
+
+      activeUsers.forEach(u => {
         html += `
           <div class="admin-user-row">
             <div class="admin-user-info">
@@ -1889,7 +1996,6 @@ class SunnyKhakassiaApp {
                   ${this.escapeHTML(u.display_name)}
                   ${u.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
                   ${u.role === 'admin' ? '<span style="color:var(--solar-gold); font-size:0.75rem; font-weight:800; margin-left:4px;">👑 АДМИН</span>' : ''}
-                  ${u.is_banned ? '<span style="color:var(--accent-red); font-size:0.75rem; font-weight:800; margin-left:4px;">🚫 ЗАБАНЕН</span>' : ''}
                 </strong>
                 <div style="font-size:0.78rem; color:var(--text-dim);">@${this.escapeHTML(u.username)} • 📍 ${this.escapeHTML(u.city || 'Абакан')}</div>
               </div>
@@ -1902,8 +2008,8 @@ class SunnyKhakassiaApp {
                 <button class="btn-secondary btn-sm" onclick="app.toggleUserAdmin(${u.id})">
                   ${u.role === 'admin' ? 'Снять админа' : '👑 Сделать админом'}
                 </button>
-                <button class="btn-sm" style="background:${u.is_banned ? 'var(--accent-green)' : 'var(--accent-red)'}; color:#fff; border:none; border-radius:var(--radius-sm); padding:4px 8px; cursor:pointer;" onclick="${u.is_banned ? `app.unbanUser(${u.id})` : `app.banScammerUser(${u.id}, 'Мошенничество')`}">
-                  ${u.is_banned ? 'Разблокировать' : '🚫 Бан'}
+                <button class="btn-sm" style="background:var(--accent-red); color:#fff; border:none; border-radius:var(--radius-sm); padding:4px 8px; cursor:pointer;" onclick="app.banScammerUser(${u.id}, 'Мошенничество')">
+                  🚫 Заблокировать
                 </button>
               ` : ''}
             </div>
@@ -1914,12 +2020,76 @@ class SunnyKhakassiaApp {
       html += '</div>';
       this.moderationContent.innerHTML = html;
 
-      users.forEach(u => {
+      activeUsers.forEach(u => {
         const el = this.moderationContent.querySelector(`#adm-av-${u.id}`);
         this.renderAvatarInto(u.avatar, el);
       });
     } catch (e) {
       this.moderationContent.innerHTML = `<div style="color:var(--accent-red); padding:20px;">Ошибка доступа к управлению пользователями.</div>`;
+    }
+  }
+
+  async renderAdminBanned(q = '') {
+    this.moderationContent.innerHTML = '<div class="spinner"></div>';
+    try {
+      const res = await fetch(`/api/admin/users?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      const data = await res.json();
+      const allUsers = data.users || [];
+      const bannedUsers = allUsers.filter(u => u.is_banned);
+      if (this.adminBannedCount) this.adminBannedCount.textContent = bannedUsers.length;
+
+      if (bannedUsers.length === 0) {
+        this.moderationContent.innerHTML = `
+          <div style="text-align:center; padding:30px; color:var(--text-dim);">
+            <div style="font-size:2rem; margin-bottom:8px;">🕊️</div>
+            <strong>Заблокированных жителей нет</strong>
+            <p style="font-size:0.8rem; margin-top:4px;">Все участники сообщества соблюдают правила безопасности.</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = `
+        <div style="margin-bottom:12px;">
+          <input type="text" placeholder="Поиск среди заблокированных..." style="width:100%; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-input); color:var(--text-main);" oninput="app.renderAdminBanned(this.value)" value="${this.escapeHTML(q)}">
+        </div>
+        <div class="admin-users-list">
+      `;
+
+      bannedUsers.forEach(u => {
+        html += `
+          <div class="admin-user-row" style="border-left: 3px solid var(--accent-red); background: rgba(239, 68, 68, 0.05);">
+            <div class="admin-user-info">
+              <div class="admin-user-avatar" id="adm-ban-av-${u.id}">👤</div>
+              <div>
+                <strong onclick="app.openUserProfile('${u.username}')" style="cursor:pointer; color:var(--accent-red);">
+                  ${this.escapeHTML(u.display_name)}
+                  <span style="font-size:0.75rem; background:rgba(239, 68, 68, 0.2); color:var(--accent-red); padding:2px 6px; border-radius:4px; margin-left:6px;">🚫 ЗАБАНЕН</span>
+                </strong>
+                <div style="font-size:0.78rem; color:var(--text-dim);">@${this.escapeHTML(u.username)} • 📍 ${this.escapeHTML(u.city || 'Хакасия')}</div>
+                <div style="font-size:0.72rem; color:var(--accent-red); margin-top:3px;">Причина: ${this.escapeHTML(u.ban_reason || 'Мошенничество')}</div>
+              </div>
+            </div>
+            <div class="admin-user-btns">
+              <button class="btn-sm" style="background:var(--accent-green); color:#fff; border:none; border-radius:var(--radius-sm); padding:6px 12px; cursor:pointer; font-weight:600;" onclick="app.unbanUser(${u.id})">
+                🔓 Разблокировать
+              </button>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      this.moderationContent.innerHTML = html;
+
+      bannedUsers.forEach(u => {
+        const el = this.moderationContent.querySelector(`#adm-ban-av-${u.id}`);
+        this.renderAvatarInto(u.avatar, el);
+      });
+    } catch (e) {
+      this.moderationContent.innerHTML = `<div style="color:var(--accent-red); padding:20px;">Ошибка доступа к списку заблокированных.</div>`;
     }
   }
 
@@ -2015,10 +2185,14 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      alert(data.message || 'Пользователь разблокирован');
-      this.renderAdminUsers();
+      this.showToast(data.message || 'Пользователь разблокирован', 'success');
+      if (this.currentAdminTab === 'banned') {
+        this.renderAdminBanned();
+      } else {
+        this.renderAdminUsers();
+      }
     } catch (e) {
-      alert('Ошибка при разблокировке');
+      this.showToast('Ошибка при разблокировке', 'error');
     }
   }
 
@@ -2042,14 +2216,16 @@ class SunnyKhakassiaApp {
         body: JSON.stringify({ reason })
       });
       const data = await res.json();
-      alert(data.message || 'Пользователь заблокирован');
+      this.showToast(data.message || 'Пользователь заблокирован', 'warning');
       if (this.currentAdminTab === 'users') {
         this.renderAdminUsers();
+      } else if (this.currentAdminTab === 'banned') {
+        this.renderAdminBanned();
       } else {
         this.renderAdminReports();
       }
     } catch (e) {
-      alert('Ошибка при блокировке');
+      this.showToast('Ошибка при блокировке', 'error');
     }
   }
 
@@ -2093,7 +2269,22 @@ class SunnyKhakassiaApp {
       this.profileHandle.textContent = `@${u.username}`;
       this.profileBannedBadge.classList.toggle('hidden', !u.is_banned);
       this.profileCity.textContent = u.city ? `г. ${u.city}, Хакасия` : 'Хакасия';
-      this.profileStatusText.textContent = u.is_banned ? '🚫 Заблокирован' : (u.status_text || (u.status === 'online' ? 'В сети' : 'Не в сети'));
+      const isOnline = u.status === 'online';
+      if (this.profileStatusDot) {
+        this.profileStatusDot.style.background = isOnline ? 'var(--accent-green)' : 'var(--text-dim)';
+      }
+      this.profileStatusText.textContent = u.is_banned ? '🚫 Заблокирован' : (isOnline ? 'В сети' : 'Не в сети');
+      if (this.profileJoinedDate) {
+        if (u.created_at) {
+          const d = new Date(u.created_at);
+          const monthNamesRu = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+          const formatted = !isNaN(d.getTime()) ? `${d.getDate()} ${monthNamesRu[d.getMonth()]} ${d.getFullYear()} г.` : u.created_at;
+          this.profileJoinedDate.textContent = `📅 В сообществе с ${formatted}`;
+          this.profileJoinedDate.classList.remove('hidden');
+        } else {
+          this.profileJoinedDate.classList.add('hidden');
+        }
+      }
       this.profileBio.textContent = u.bio || 'Житель Солнечной Хакасии ☀️';
 
       // Custom Profile Cover (Photo or GIF)
@@ -2180,24 +2371,7 @@ class SunnyKhakassiaApp {
         }
       }
 
-      // Profile Anthem
-      if (this.profileAnthemCard) {
-        if (u.profile_music) {
-          try {
-            const m = typeof u.profile_music === 'string' ? JSON.parse(u.profile_music) : u.profile_music;
-            if (this.profileAnthemTitle) this.profileAnthemTitle.textContent = m.title || 'Аудиозапись';
-            if (this.profileAnthemArtist) this.profileAnthemArtist.textContent = m.artist || 'Исполнитель';
-            this.profileAnthemCard.classList.remove('hidden');
-            if (this.btnRemoveProfileAnthem) {
-              this.btnRemoveProfileAnthem.classList.toggle('hidden', !isMe);
-            }
-          } catch (e) {
-            this.profileAnthemCard.classList.add('hidden');
-          }
-        } else {
-          this.profileAnthemCard.classList.add('hidden');
-        }
-      }
+
 
       this.btnUploadOwnAvatar.classList.toggle('hidden', !isMe);
       if (this.btnChangeCover) {
@@ -2328,6 +2502,7 @@ class SunnyKhakassiaApp {
         this.switchProfileSubtab('posts');
         this.loadUserPosts(u.id);
         this.loadUserFriends(u.id);
+        this.loadUserMusic(u.id);
       }
 
     } catch (err) {
@@ -3325,56 +3500,85 @@ class SunnyKhakassiaApp {
   // Voice recording
   async startVoiceRecording() {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.showToast('Микрофон недоступен в данном браузере', 'error');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.audioChunks = [];
-      this.mediaRecorder = new MediaRecorder(stream);
+      this.voiceStream = stream;
+
+      let mimeType = '';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+      }
+      this.voiceMimeType = mimeType;
+
+      this.mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
 
       this.mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) this.audioChunks.push(e.data);
+        if (e.data && e.data.size > 0) this.audioChunks.push(e.data);
       };
 
-      this.mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
-      };
-
-      this.mediaRecorder.start();
-      this.voiceRecordingBar.classList.remove('hidden');
+      this.mediaRecorder.start(250);
+      if (this.voiceRecordingBar) this.voiceRecordingBar.classList.remove('hidden');
+      if (this.btnMediaToggle) this.btnMediaToggle.classList.add('recording');
       this.recordSeconds = 0;
-      this.recordingTimer.textContent = '00:00';
+      if (this.recordingTimer) this.recordingTimer.textContent = '00:00';
+      clearInterval(this.recordTimer);
       this.recordTimer = setInterval(() => {
         this.recordSeconds++;
         const m = String(Math.floor(this.recordSeconds / 60)).padStart(2, '0');
         const s = String(this.recordSeconds % 60).padStart(2, '0');
-        this.recordingTimer.textContent = `${m}:${s}`;
+        if (this.recordingTimer) this.recordingTimer.textContent = `${m}:${s}`;
       }, 1000);
     } catch (err) {
-      alert('Не удалось получить доступ к микрофону: ' + err.message);
+      this.showToast('Не удалось получить доступ к микрофону: ' + err.message, 'error');
     }
   }
 
   cancelVoiceRecording() {
+    if (this.btnMediaToggle) this.btnMediaToggle.classList.remove('recording');
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
+      try { this.mediaRecorder.stop(); } catch(e){}
+    }
+    if (this.voiceStream) {
+      this.voiceStream.getTracks().forEach(t => t.stop());
+      this.voiceStream = null;
     }
     clearInterval(this.recordTimer);
     this.audioChunks = [];
-    this.voiceRecordingBar.classList.add('hidden');
+    if (this.voiceRecordingBar) this.voiceRecordingBar.classList.add('hidden');
   }
 
   async sendVoiceRecording() {
+    if (this.btnMediaToggle) this.btnMediaToggle.classList.remove('recording');
     if (!this.mediaRecorder) return;
+
     if (this.mediaRecorder.state === 'recording') {
-      this.mediaRecorder.stop();
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(resolve => {
+        this.mediaRecorder.onstop = () => {
+          if (this.voiceStream) {
+            this.voiceStream.getTracks().forEach(t => t.stop());
+            this.voiceStream = null;
+          }
+          resolve();
+        };
+        this.mediaRecorder.stop();
+      });
     }
     clearInterval(this.recordTimer);
-    this.voiceRecordingBar.classList.add('hidden');
+    if (this.voiceRecordingBar) this.voiceRecordingBar.classList.add('hidden');
 
     if (this.audioChunks.length === 0) return;
 
-    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+    const mime = this.voiceMimeType || 'audio/webm';
+    const ext = mime.includes('mp4') ? 'mp4' : (mime.includes('ogg') ? 'ogg' : 'webm');
+    const audioBlob = new Blob(this.audioChunks, { type: mime });
     const formData = new FormData();
-    formData.append('file', audioBlob, `voice_${Date.now()}.webm`);
+    formData.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
 
     try {
       const res = await fetch('/api/upload', {
@@ -3386,7 +3590,7 @@ class SunnyKhakassiaApp {
       if (!res.ok) throw new Error(data.error);
 
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        alert('Чат не подключен');
+        this.showToast('Чат не подключен', 'error');
         return;
       }
 
@@ -3402,7 +3606,7 @@ class SunnyKhakassiaApp {
         }
       }));
     } catch (err) {
-      alert('Ошибка отправки голосового сообщения: ' + err.message);
+      this.showToast('Ошибка отправки голосового сообщения: ' + err.message, 'error');
     }
   }
 
@@ -4006,6 +4210,7 @@ class SunnyKhakassiaApp {
     const display_name = document.getElementById('regDisplayName').value.trim();
     const city = document.getElementById('regCity').value;
     const password = document.getElementById('regPassword').value;
+    const phone = document.getElementById('regPhone') ? document.getElementById('regPhone').value.trim() : '';
     const selAv = document.querySelector('#regAvatarPresets .avatar-option.selected');
     const avatar = selAv ? selAv.dataset.avatar : 'preset:cat';
 
@@ -4017,7 +4222,7 @@ class SunnyKhakassiaApp {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, display_name, city, password, avatar })
+        body: JSON.stringify({ username, display_name, city, password, avatar, phone })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -4360,11 +4565,11 @@ class SunnyKhakassiaApp {
       <span class="track-genre-tag">${this.escapeHTML(track.genre || 'Музыка')}</span>
       <span style="font-size:0.75rem; color:var(--text-dim); flex-shrink:0;">${this.escapeHTML(track.duration || '03:15')}</span>
       <div class="track-actions">
-        <button type="button" class="track-btn-save ${track.is_saved ? 'saved' : ''}" title="${track.is_saved ? 'Удалить из сохранённых' : 'Сохранить трек'}">
-          ${track.is_saved ? '⭐' : '🤍'}
+        <button type="button" class="track-btn-save ${track.is_saved ? 'saved' : ''}" title="${track.is_saved ? 'Удалить из сохранённых' : 'Сохранить в Мои треки'}">
+          ${track.is_saved ? '⭐ Сохранено' : '🤍 В сохранённые'}
         </button>
-        <button type="button" class="track-btn-anthem" title="Поставить аудиозапись в свой профиль">
-          👑 В профиль
+        <button type="button" class="track-btn-anthem" title="Поставить аудиозапись в статус профиля (как в Telegram)">
+          🎵 В статус
         </button>
       </div>
     `;
@@ -4457,17 +4662,24 @@ class SunnyKhakassiaApp {
         if (!res.ok) throw new Error(data.error || 'Ошибка сохранения трека');
 
         track.is_saved = true;
-        track.id = data.track.id;
+        track.id = data.track ? data.track.id : (data.trackId || track.id);
         track.is_online = false;
 
         if (btnEl) {
-          btnEl.textContent = '⭐';
+          btnEl.textContent = '⭐ Сохранено';
           btnEl.classList.add('saved');
         }
         if (this.playerBtnSave && this.currentPlayingTrack && (this.currentPlayingTrack.audio_url === track.audio_url)) {
-          this.playerBtnSave.textContent = '⭐';
+          this.playerBtnSave.textContent = '⭐ В сохранённых';
+          this.playerBtnSave.classList.add('saved');
+        }
+        if (this.profileStatMusicCount && data.count !== undefined) {
+          this.profileStatMusicCount.textContent = data.count;
         }
         this.showToast(`Трек "${track.title}" сохранён в вашу музыку! ⭐`, 'success');
+        if (this.currentTab === 'profile' && this.currentUser && this.activeProfileUser && this.currentUser.id === this.activeProfileUser.id) {
+          this.loadUserMusic(this.currentUser.id);
+        }
         return;
       }
 
@@ -4482,16 +4694,20 @@ class SunnyKhakassiaApp {
 
       track.is_saved = !isSaved;
       if (btnEl) {
-        btnEl.textContent = track.is_saved ? '⭐' : '🤍';
+        btnEl.textContent = track.is_saved ? '⭐ Сохранено' : '🤍 В сохранённые';
         btnEl.classList.toggle('saved', track.is_saved);
       }
-      if (this.playerBtnSave && this.currentPlayingTrack && this.currentPlayingTrack.id === track.id) {
-        this.playerBtnSave.textContent = track.is_saved ? '⭐' : '🤍';
+      if (this.playerBtnSave && this.currentPlayingTrack && (this.currentPlayingTrack.id === track.id || this.currentPlayingTrack.audio_url === track.audio_url)) {
+        this.playerBtnSave.textContent = track.is_saved ? '⭐ В сохранённых' : '🤍 В сохранённые';
+        this.playerBtnSave.classList.toggle('saved', track.is_saved);
       }
-      if (this.profileStatMusicCount && this.activeProfileUser && this.currentUser && this.activeProfileUser.id === this.currentUser.id) {
+      if (this.profileStatMusicCount && data.count !== undefined) {
         this.profileStatMusicCount.textContent = data.count;
       }
       this.showToast(track.is_saved ? 'Трек добавлен в сохранённые ⭐' : 'Трек удалён из сохранённых', 'info');
+      if (this.currentTab === 'profile' && this.currentUser && this.activeProfileUser && this.currentUser.id === this.activeProfileUser.id) {
+        this.loadUserMusic(this.currentUser.id);
+      }
     } catch (e) {
       this.showToast('Ошибка при сохранении трека', 'error');
     }

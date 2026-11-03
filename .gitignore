@@ -8,3 +8,5 @@ ngrok.exe
 cloudflared.exe
 .DS_Store
 Thumbs.db
+*.db-wal
+*.db-shm

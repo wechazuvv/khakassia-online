@@ -85,6 +85,7 @@ function sanitizeUser(u) {
     display_name: u.display_name,
     avatar: u.avatar,
     banner: u.banner || '',
+    phone: u.phone || '',
     city: u.city || 'Абакан',
     bio: u.bio || '',
     favorite_place: u.favorite_place || '',
@@ -107,7 +108,7 @@ function sanitizeUser(u) {
 // 1. Register
 app.post('/api/auth/register', (req, res) => {
   try {
-    const { username, password, display_name, avatar, city, bio } = req.body;
+    const { username, password, display_name, avatar, city, bio, phone } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
@@ -135,16 +136,35 @@ app.post('/api/auth/register', (req, res) => {
       return res.status(409).json({ error: 'Пользователь с таким юзернеймом (@юз) уже зарегистрирован' });
     }
 
+    // Проверка и нормализация номера телефона
+    let cleanPhone = '';
+    if (phone && phone.trim()) {
+      cleanPhone = phone.replace(/[^\d+]/g, '');
+      if (cleanPhone.startsWith('8')) cleanPhone = '+7' + cleanPhone.slice(1);
+      if (cleanPhone.length >= 10 && !cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+
+      if (cleanPhone.length >= 10) {
+        const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanPhone);
+        if (existingPhone) {
+          return res.status(409).json({ error: 'Пользователь с таким номером телефона уже зарегистрирован' });
+        }
+      }
+    }
+
     const { hash, salt } = hashPassword(password);
     const chosenDisplayName = (display_name && display_name.trim()) || username;
     const chosenAvatar = avatar || 'preset:cat';
     const chosenCity = city ? city.trim() : 'Абакан';
     const chosenBio = bio ? bio.trim() : 'Житель прекрасной Солнечной Хакасии ☀️';
 
+    const monthNamesRu = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const now = new Date();
+    const joinStatusText = `В сообществе с ${now.getDate()} ${monthNamesRu[now.getMonth()]} ${now.getFullYear()} г.`;
+
     const insert = db.prepare(`
-      INSERT INTO users (username, display_name, password_hash, salt, avatar, city, bio, is_verified, role, status, status_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'user', 'online', 'В сети • Солнечная Хакасия')
-    `).run(cleanUsername, chosenDisplayName, hash, salt, chosenAvatar, chosenCity, chosenBio);
+      INSERT INTO users (username, display_name, password_hash, salt, avatar, city, bio, is_verified, role, status, status_text, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'user', 'online', ?, ?)
+    `).run(cleanUsername, chosenDisplayName, hash, salt, chosenAvatar, chosenCity, chosenBio, joinStatusText, cleanPhone);
 
     const userId = insert.lastInsertRowid;
     const token = createSession(userId);
@@ -162,19 +182,27 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
-// 2. Login (с защитой от подбора паролей Rate Limiter)
+// 2. Login (с поддержкой входа по логину или по номеру телефона)
 app.post('/api/auth/login', loginRateLimit, (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
-      return res.status(400).json({ error: 'Введите логин и пароль' });
+      return res.status(400).json({ error: 'Введите логин или номер телефона и пароль' });
     }
 
-    const cleanUsername = username.trim().toLowerCase();
-    const userRow = db.prepare(`SELECT * FROM users WHERE username = ?`).get(cleanUsername);
+    const input = username.trim();
+    let cleanPhone = input.replace(/[^\d+]/g, '');
+    if (cleanPhone.startsWith('8')) cleanPhone = '+7' + cleanPhone.slice(1);
+    if (cleanPhone.length >= 10 && !cleanPhone.startsWith('+')) cleanPhone = '+' + cleanPhone;
+    const cleanUsername = input.toLowerCase();
+
+    const userRow = db.prepare(`
+      SELECT * FROM users 
+      WHERE username = ? OR (phone IS NOT NULL AND phone != '' AND phone = ?)
+    `).get(cleanUsername, cleanPhone);
 
     if (!userRow) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'Неверный логин, телефон или пароль' });
     }
 
     if (userRow.is_banned) {
@@ -185,7 +213,7 @@ app.post('/api/auth/login', loginRateLimit, (req, res) => {
 
     const valid = verifyPassword(password, userRow.password_hash, userRow.salt);
     if (!valid) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'Неверный логин, телефон или пароль' });
     }
 
     const token = createSession(userRow.id);
@@ -1596,51 +1624,119 @@ app.get('/api/music', authMiddleware, (req, res) => {
   }
 });
 
-// Популярные новинки и чарт музыки
+// Helper: Поиск полноценных MP3 треков (без 30-секундного ограничения)
+async function fetchMp3BobTracks(query, limit = 15) {
+  try {
+    const res = await fetch('https://mp3bob.ru/index.php?do=search&subaction=search&story=' + encodeURIComponent(query), {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const re = /class="song-item"[\s\S]*?data-url-hq="([^"]+)"[\s\S]*?<span class="song_nazv[^"]*">([\s\S]*?)<\/span>[\s\S]*?<span class="song_artist[^"]*">([\s\S]*?)<\/span>/g;
+    const tracks = [];
+    let m;
+    while ((m = re.exec(html)) !== null && tracks.length < limit) {
+      const cleanTitle = m[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+      const cleanArtist = m[3].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+      let rawUrl = m[1];
+      if (!rawUrl.startsWith('http')) rawUrl = 'https://mp3bob.ru' + rawUrl;
+      const streamUrl = `/api/music/proxy-stream?url=${encodeURIComponent(rawUrl)}`;
+      tracks.push({
+        id: 'full_' + Buffer.from(cleanTitle + cleanArtist).toString('hex').slice(0, 16),
+        title: cleanTitle,
+        artist: cleanArtist,
+        audio_url: streamUrl,
+        cover_url: '/images/khakassia-banner.jpg',
+        duration: '03:30',
+        genre: 'Хит',
+        is_online: true,
+        uploader_name: 'Полный трек'
+      });
+    }
+    return tracks;
+  } catch (err) {
+    console.warn('mp3bob search error:', err.message);
+    return [];
+  }
+}
+
+// Проксирование полного аудио-потока MP3 (с поддержкой Range и перемотки)
+const { Readable } = require('node:stream');
+app.get('/api/music/proxy-stream', async (req, res) => {
+  try {
+    const targetUrl = req.query.url;
+    if (!targetUrl || (!targetUrl.startsWith('https://mp3bob.ru/') && !targetUrl.startsWith('http://mp3bob.ru/'))) {
+      return res.status(400).send('Invalid url');
+    }
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    };
+    if (req.headers.range) {
+      headers['Range'] = req.headers.range;
+    }
+    const upstreamRes = await fetch(targetUrl, { headers });
+    
+    res.status(upstreamRes.status);
+    const forwardHeaders = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+    for (const h of forwardHeaders) {
+      const val = upstreamRes.headers.get(h);
+      if (val) res.setHeader(h, val);
+    }
+    if (!res.getHeader('content-type')) {
+      res.setHeader('content-type', 'audio/mpeg');
+    }
+    if (!res.getHeader('accept-ranges')) {
+      res.setHeader('accept-ranges', 'bytes');
+    }
+
+    Readable.fromWeb(upstreamRes.body).pipe(res);
+  } catch (err) {
+    console.error('Audio proxy stream error:', err);
+    if (!res.headersSent) res.status(500).send('Stream error');
+  }
+});
+
+// Популярные новинки и чарт музыки (полные треки)
 app.get('/api/music/trending', authMiddleware, async (req, res) => {
   try {
     const myId = req.user.id;
-    const trendingQueries = ['MACAN', 'Miyagi', 'ANNA ASTI', 'NEWLIGHTCHILD', 'Xcho'];
-    const fetchPromises = trendingQueries.map(async (query) => {
-      try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=4`;
-        const resp = await fetch(url);
-        if (!resp.ok) return [];
-        const data = await resp.json();
-        return data.results || [];
-      } catch (err) {
-        return [];
-      }
-    });
-
-    const resultsArray = await Promise.all(fetchPromises);
-    const rawResults = resultsArray.flat();
+    const queries = ['MACAN', 'Miyagi', 'ANNA ASTI', 'NEWLIGHTCHILD', 'Xcho'];
+    const fetchPromises = queries.map(q => fetchMp3BobTracks(q, 4));
+    const results = await Promise.all(fetchPromises);
+    let tracks = results.flat();
 
     const savedTracks = db.prepare('SELECT audio_url FROM tracks WHERE id IN (SELECT track_id FROM user_saved_tracks WHERE user_id = ?)').all(myId);
     const savedUrls = new Set(savedTracks.map(st => st.audio_url));
 
-    const tracks = rawResults.map(item => {
-      const durMs = item.trackTimeMillis || 180000;
-      const totalSec = Math.floor(durMs / 1000);
-      const m = Math.floor(totalSec / 60);
-      const s = totalSec % 60;
-      const durationStr = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-      const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg';
+    tracks.forEach(t => {
+      t.is_saved = savedUrls.has(t.audio_url);
+    });
 
-      return {
+    if (tracks.length === 0) {
+      // Резервный источник iTunes, если сторонний сервер недоступен
+      const itunesPromises = queries.map(async (query) => {
+        try {
+          const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=4`);
+          if (!resp.ok) return [];
+          const data = await resp.json();
+          return data.results || [];
+        } catch { return []; }
+      });
+      const itunesArr = (await Promise.all(itunesPromises)).flat();
+      tracks = itunesArr.map(item => ({
         id: `online_${item.trackId}`,
         itunes_id: item.trackId,
         title: item.trackName || 'Без названия',
         artist: item.artistName || 'Неизвестный исполнитель',
         audio_url: item.previewUrl,
-        cover_url: cover,
-        duration: durationStr,
+        cover_url: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg',
+        duration: '03:15',
         genre: item.primaryGenreName || 'Новинки',
         is_online: true,
         is_saved: savedUrls.has(item.previewUrl),
         uploader_name: 'Чарт'
-      };
-    }).filter(item => item.audio_url);
+      })).filter(t => t.audio_url);
+    }
 
     res.json({ tracks });
   } catch (err) {
@@ -1649,7 +1745,7 @@ app.get('/api/music/trending', authMiddleware, async (req, res) => {
   }
 });
 
-// Глобальный поиск музыки (Локальные треки + iTunes API)
+// Глобальный поиск музыки (Локальные треки + Полные треки онлайн)
 app.get('/api/music/search', authMiddleware, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
@@ -1676,41 +1772,48 @@ app.get('/api/music/search', authMiddleware, async (req, res) => {
       t.is_online = false; 
     });
 
-    // 2. Глобальный поиск в открытой библиотеке iTunes Search API
-    let onlineTracks = [];
-    try {
-      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=30`;
-      const apiRes = await fetch(itunesUrl);
-      if (apiRes.ok) {
-        const apiData = await apiRes.json();
-        const savedTracks = db.prepare('SELECT audio_url FROM tracks WHERE id IN (SELECT track_id FROM user_saved_tracks WHERE user_id = ?)').all(myId);
-        const savedUrls = new Set(savedTracks.map(st => st.audio_url));
+    const savedTracks = db.prepare('SELECT audio_url FROM tracks WHERE id IN (SELECT track_id FROM user_saved_tracks WHERE user_id = ?)').all(myId);
+    const savedUrls = new Set(savedTracks.map(st => st.audio_url));
 
-        onlineTracks = (apiData.results || []).map(item => {
-          const durMs = item.trackTimeMillis || 180000;
-          const totalSec = Math.floor(durMs / 1000);
-          const m = Math.floor(totalSec / 60);
-          const s = totalSec % 60;
-          const durationStr = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-          const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg';
+    // 2. Поиск полных онлайн-треков
+    let onlineTracks = await fetchMp3BobTracks(q, 25);
+    onlineTracks.forEach(t => {
+      t.is_saved = savedUrls.has(t.audio_url);
+    });
 
-          return {
-            id: `online_${item.trackId}`,
-            itunes_id: item.trackId,
-            title: item.trackName || 'Без названия',
-            artist: item.artistName || 'Неизвестный исполнитель',
-            audio_url: item.previewUrl,
-            cover_url: cover,
-            duration: durationStr,
-            genre: item.primaryGenreName || 'Популярная музыка',
-            is_online: true,
-            is_saved: savedUrls.has(item.previewUrl),
-            uploader_name: 'Онлайн'
-          };
-        }).filter(item => item.audio_url);
+    // Резервный поиск в iTunes, если ничего не найдено в открытом хранилище
+    if (onlineTracks.length === 0) {
+      try {
+        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=30`;
+        const apiRes = await fetch(itunesUrl);
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          onlineTracks = (apiData.results || []).map(item => {
+            const durMs = item.trackTimeMillis || 180000;
+            const totalSec = Math.floor(durMs / 1000);
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            const durationStr = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg';
+
+            return {
+              id: `online_${item.trackId}`,
+              itunes_id: item.trackId,
+              title: item.trackName || 'Без названия',
+              artist: item.artistName || 'Неизвестный исполнитель',
+              audio_url: item.previewUrl,
+              cover_url: cover,
+              duration: durationStr,
+              genre: item.primaryGenreName || 'Популярная музыка',
+              is_online: true,
+              is_saved: savedUrls.has(item.previewUrl),
+              uploader_name: 'Онлайн'
+            };
+          }).filter(item => item.audio_url);
+        }
+      } catch (e) {
+        console.warn('iTunes search fallback error:', e.message);
       }
-    } catch (e) {
-      console.warn('iTunes search error:', e.message);
     }
 
     res.json({ tracks: [...localTracks, ...onlineTracks] });
@@ -1734,13 +1837,19 @@ app.post('/api/music/save-online', authMiddleware, (req, res) => {
       const ins = db.prepare(`
         INSERT INTO tracks (user_id, title, artist, audio_url, cover_url, duration, genre)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(req.user.id, title, artist || 'Исполнитель', audio_url, cover_url || '', duration || '03:00', genre || 'Популярная музыка');
+      `).run(req.user.id, title, artist || 'Исполнитель', audio_url, cover_url || '', duration || '03:30', genre || 'Хит');
       trackId = ins.lastInsertRowid;
     }
 
     db.prepare('INSERT OR IGNORE INTO user_saved_tracks (user_id, track_id) VALUES (?, ?)').run(req.user.id, trackId);
     const count = db.prepare('SELECT COUNT(*) as count FROM user_saved_tracks WHERE user_id = ?').get(req.user.id).count;
-    res.json({ success: true, saved: true, trackId, count });
+    res.json({
+      success: true,
+      saved: true,
+      trackId,
+      track: { id: trackId, title, artist, audio_url, cover_url, duration, genre },
+      count
+    });
   } catch (e) {
     res.status(500).json({ error: 'Ошибка сохранения трека' });
   }

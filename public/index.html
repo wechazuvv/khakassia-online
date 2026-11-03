@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Хакасия Онлайн — Социальная сеть и сообщество</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☀️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -397,14 +397,15 @@
                 <input type="file" id="chatFileInput" accept="image/*,video/*,audio/*" class="hidden">
                 <button type="button" class="btn-input-action" id="btnChatAttach" title="Прикрепить файл">📎</button>
                 <button type="button" class="btn-input-action" id="btnChatStickers" title="Стикеры Хакасии ☀️">🎭</button>
-                <button type="button" class="btn-input-action btn-voice-record" id="btnChatVoice" title="Записать голосовое сообщение">🎙️</button>
-                <button type="button" class="btn-input-action btn-circle-record-btn" id="btnChatCircle" title="Записать видео-кружочек (как в Telegram)">📹</button>
                 <textarea 
                   id="chatMessageInput" 
                   rows="1" 
                   placeholder="Написать в чат... (Enter для отправки)"
                 ></textarea>
-                <button type="submit" class="btn-send" id="btnChatSend">
+                <button type="button" class="btn-media-toggle" id="btnMediaToggle" title="Нажмите, чтобы переключить (🎙️/📹), зажмите для записи">
+                  <span id="mediaToggleIcon">🎙️</span>
+                </button>
+                <button type="submit" class="btn-send hidden" id="btnChatSend" title="Отправить сообщение">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
               </form>
@@ -574,24 +575,13 @@
                   <span id="profileCity">г. Абакан, Хакасия</span>
                   <span class="status-dot-inline" id="profileStatusDot"></span>
                   <span id="profileStatusText">В сети</span>
+                  <span class="profile-joined-date hidden" id="profileJoinedDate"></span>
                 </div>
                 <p class="profile-bio-text" id="profileBio">Информация о себе...</p>
                 <div class="profile-extra-details" id="profileExtraDetails">
                   <span class="profile-detail-pill hidden" id="profileDetailPlace">🏔️ <span id="profilePlaceVal"></span></span>
                   <a href="#" target="_blank" rel="noopener noreferrer" class="profile-detail-pill profile-tg-link hidden" id="profileDetailTg">✈️ <span id="profileTgVal"></span></a>
                   <span class="profile-detail-pill hidden" id="profileDetailBirth">🎂 <span id="profileBirthVal"></span></span>
-                </div>
-
-                <!-- Profile Anthem Widget -->
-                <div class="profile-anthem-card hidden" id="profileAnthemCard">
-                  <div class="anthem-disc">🎵</div>
-                  <div class="anthem-meta">
-                    <span class="anthem-tag">Любимая песня профиля</span>
-                    <strong class="anthem-title" id="profileAnthemTitle">Трек</strong>
-                    <span class="anthem-artist" id="profileAnthemArtist">Исполнитель</span>
-                  </div>
-                  <button type="button" class="btn-anthem-play" id="btnProfileAnthemPlay" title="Слушать">▶️</button>
-                  <button type="button" class="btn-icon-xs hidden" id="btnRemoveProfileAnthem" title="Убрать из профиля">✕</button>
                 </div>
               </div>
 
@@ -664,8 +654,8 @@
 
       <form class="auth-form" id="loginForm">
         <div class="form-group">
-          <label>Логин или Юзернейм (@юз)</label>
-          <input type="text" id="loginUsername" required placeholder="например: alex_abakan" autocomplete="username">
+          <label>Логин, @юз или номер телефона</label>
+          <input type="text" id="loginUsername" required placeholder="@юзернейм или +7 (999) 123-45-67" autocomplete="username">
         </div>
         <div class="form-group">
           <label>Пароль</label>
@@ -683,6 +673,11 @@
           <label>Юзернейм (@юз) — латиница и цифры</label>
           <input type="text" id="regUsername" required placeholder="например: sayan_alex" pattern="[a-zA-Z0-9_]{3,25}" autocomplete="username">
           <small class="field-hint">Ваш уникальный юз в системе: @юз</small>
+        </div>
+        <div class="form-group">
+          <label>📱 Номер телефона (для быстрой авторизации)</label>
+          <input type="tel" id="regPhone" placeholder="+7 (___) ___-__-__" autocomplete="tel">
+          <small class="field-hint">Позволит легко входить в аккаунт с любого телефона</small>
         </div>
         <div class="form-group">
           <label>Отображаемое имя (как вас зовут)</label>
@@ -775,6 +770,7 @@
       <div class="admin-modal-nav">
         <button class="admin-nav-tab active" data-admintab="reports" id="adminTabReports">🚨 Жалобы (<span id="adminPendingCount">0</span>)</button>
         <button class="admin-nav-tab" data-admintab="users" id="adminTabUsers">👥 Жители Хакасии</button>
+        <button class="admin-nav-tab" data-admintab="banned" id="adminTabBanned">🚫 Заблокированные (<span id="adminBannedCount">0</span>)</button>
         <button class="admin-nav-tab" data-admintab="stats" id="adminTabStats">📊 Статистика портала</button>
       </div>
       <div class="moderation-content" id="moderationContent">
