@@ -28,12 +28,14 @@ class SunnyKhakassiaApp {
     this.chatMessages = [];
     this.pendingChatAttachment = null;
     this.replyingTo = null;
+    this.chatUnreadTotal = 0;
 
     // Post creation state
     this.pendingPostMedia = null;
 
     this.ws = null;
     this.reconnectInterval = null;
+    this.wsPingInterval = null;
 
     this.cacheDOM();
     this.bindEvents();
@@ -53,6 +55,8 @@ class SunnyKhakassiaApp {
     this.navUserName = document.getElementById('navUserName');
     this.navUserHandle = document.getElementById('navUserHandle');
     this.friendsRequestsBadge = document.getElementById('friendsRequestsBadge');
+    this.chatUnreadBadge = document.getElementById('chatUnreadBadge');
+    this.toastContainer = document.getElementById('toastContainer');
     this.btnOpenModeration = document.getElementById('btnOpenModeration');
 
     // Notifications DOM
@@ -309,6 +313,105 @@ class SunnyKhakassiaApp {
     this.imageLightbox = document.getElementById('imageLightbox');
     this.lightboxImg = document.getElementById('lightboxImg');
     this.btnCloseLightbox = document.getElementById('btnCloseLightbox');
+  }
+
+  showToast(messageOrOpts, type = 'info', extraOpts = {}) {
+    let opts = {};
+    if (typeof messageOrOpts === 'string') {
+      opts = { message: messageOrOpts, type, ...extraOpts };
+    } else {
+      opts = { ...messageOrOpts };
+    }
+    const container = this.toastContainer || document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    const toastType = opts.type || 'info';
+    toast.className = `toast toast-${toastType}`;
+
+    let iconHTML = '';
+    if (opts.avatar) {
+      if (opts.avatar.startsWith('/') || opts.avatar.startsWith('http')) {
+        iconHTML = `<img src="${this.escapeHTML(opts.avatar)}" class="toast-avatar" alt="Avatar">`;
+      } else {
+        const emo = PRESET_AVATARS[opts.avatar] || '👤';
+        iconHTML = `<div class="toast-avatar" style="display:flex;align-items:center;justify-content:center;font-size:1.4rem;">${emo}</div>`;
+      }
+    } else {
+      let icon = opts.icon;
+      if (!icon) {
+        if (toastType === 'success') icon = '✅';
+        else if (toastType === 'error') icon = '❌';
+        else if (toastType === 'warning') icon = '⚠️';
+        else if (toastType === 'message') icon = '💬';
+        else icon = 'ℹ️';
+      }
+      iconHTML = `<div class="toast-icon">${icon}</div>`;
+    }
+
+    const titleHTML = opts.title ? `<div class="toast-title">${this.escapeHTML(opts.title)}</div>` : '';
+    const bodyHTML = `<div class="toast-body">${this.escapeHTML(opts.message || '')}</div>`;
+
+    toast.innerHTML = `
+      ${iconHTML}
+      <div class="toast-content">
+        ${titleHTML}
+        ${bodyHTML}
+      </div>
+      <button class="toast-close" title="Закрыть">✕</button>
+      <div class="toast-progress"></div>
+    `;
+
+    const closeBtn = toast.querySelector('.toast-close');
+    let isDismissed = false;
+    const dismiss = () => {
+      if (isDismissed) return;
+      isDismissed = true;
+      toast.classList.remove('toast-show');
+      toast.classList.add('toast-hide');
+      setTimeout(() => toast.remove(), 320);
+    };
+
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      dismiss();
+    };
+
+    if (typeof opts.onClick === 'function') {
+      toast.onclick = (e) => {
+        if (e.target === closeBtn) return;
+        dismiss();
+        opts.onClick();
+      };
+    } else {
+      toast.onclick = (e) => {
+        if (e.target === closeBtn) return;
+        dismiss();
+      };
+    }
+
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.classList.add('toast-show');
+    });
+
+    const duration = opts.duration || (toastType === 'message' ? 6000 : 4200);
+    const progressBar = toast.querySelector('.toast-progress');
+    if (progressBar) {
+      progressBar.style.transition = `transform ${duration}ms linear`;
+      requestAnimationFrame(() => {
+        progressBar.style.transform = 'scaleX(0)';
+      });
+    }
+
+    let timer = setTimeout(dismiss, duration);
+    toast.onmouseenter = () => {
+      clearTimeout(timer);
+      if (progressBar) progressBar.style.transition = 'none';
+    };
+    toast.onmouseleave = () => {
+      timer = setTimeout(dismiss, 1500);
+    };
   }
 
   bindEvents() {
@@ -593,7 +696,11 @@ class SunnyKhakassiaApp {
       this.initStickers();
       this.initWebSocket();
       this.loadNotifications();
-      setInterval(() => this.loadNotifications(), 15000);
+      this.refreshUnreadChatBadge();
+      setInterval(() => {
+        this.loadNotifications();
+        this.refreshUnreadChatBadge();
+      }, 15000);
       this.handleRoute(window.location.pathname);
       this.checkFriendRequests();
     } catch (e) {
@@ -676,6 +783,10 @@ class SunnyKhakassiaApp {
       this.loadChannels();
       this.loadChatDms();
       this.loadChatMessages();
+      if (this.currentChatChannelId === 1) {
+        this.chatUnreadTotal = 0;
+        if (this.chatUnreadBadge) this.chatUnreadBadge.classList.add('hidden');
+      }
     } else if (tabName === 'music') {
       document.getElementById('viewMusic').classList.remove('hidden');
       this.loadMusicList();
@@ -714,18 +825,36 @@ class SunnyKhakassiaApp {
   // ----------------- WEBSOCKET -----------------
   initWebSocket() {
     if (!this.token) return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
 
-    this.ws = new WebSocket(wsUrl);
+    try {
+      this.ws = new WebSocket(wsUrl);
+    } catch (e) {
+      console.warn('WS Init Error:', e);
+      return;
+    }
 
     this.ws.onopen = () => {
       this.ws.send(JSON.stringify({ type: 'auth', token: this.token }));
+
+      // Heartbeat ping каждые 20 сек для поддержания сессии на Render
+      if (this.wsPingInterval) clearInterval(this.wsPingInterval);
+      this.wsPingInterval = setInterval(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 20000);
     };
 
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === 'pong') return;
         this.handleWsEvent(data);
       } catch (e) {
         console.error('WS Error:', e);
@@ -733,6 +862,10 @@ class SunnyKhakassiaApp {
     };
 
     this.ws.onclose = () => {
+      if (this.wsPingInterval) {
+        clearInterval(this.wsPingInterval);
+        this.wsPingInterval = null;
+      }
       if (this.token && !this.reconnectInterval) {
         this.reconnectInterval = setTimeout(() => {
           this.reconnectInterval = null;
@@ -768,23 +901,31 @@ class SunnyKhakassiaApp {
         break;
 
       case 'system_alert':
-        alert(data.message);
+        this.showToast(data.message, 'warning');
         break;
 
       case 'account_banned':
-        alert(`🚨 Внимание: Ваш аккаунт заблокирован за нарушение правил. Причина: ${data.reason}`);
-        localStorage.removeItem('pulse_token');
-        window.location.reload();
+        this.showToast(`🚨 Ваш аккаунт заблокирован: ${data.reason}`, 'error', { duration: 10000 });
+        setTimeout(() => {
+          localStorage.removeItem('pulse_token');
+          window.location.reload();
+        }, 2500);
         break;
 
       case 'friend_request_received':
         this.checkFriendRequests();
         window.soundFX && window.soundFX.playReceive();
+        this.showToast('👥 Новая заявка в друзья!', 'info', {
+          onClick: () => this.switchTab('friends')
+        });
         break;
 
       case 'friend_request_accepted':
         this.checkFriendRequests();
         window.soundFX && window.soundFX.playReceive();
+        this.showToast('🎉 Пользователь принял вашу заявку в друзья!', 'success', {
+          onClick: () => this.switchTab('friends')
+        });
         break;
 
       case 'user_profile_updated':
@@ -1483,6 +1624,9 @@ class SunnyKhakassiaApp {
       this.switchTab('friends');
     } else if (type === 'dm') {
       this.switchTab('chat');
+      if (targetId) {
+        this.startDmWithUser({ id: targetId, display_name: 'Собеседник' });
+      }
     }
   }
 
@@ -2162,14 +2306,20 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      alert(data.message);
+      if (!res.ok) {
+        this.showToast(data.error || 'Ошибка при отправке заявки', 'error');
+        return;
+      }
+      const isAlready = data.message && data.message.includes('уже');
+      this.showToast(data.message, isAlready ? 'warning' : 'success');
+
       if (this.currentTab === 'profile' && this.activeProfileUser) {
         this.openUserProfile(this.activeProfileUser.username);
       } else {
         this.loadFriendsTab();
       }
     } catch (e) {
-      alert('Ошибка при отправке заявки');
+      this.showToast('Ошибка при отправке заявки: ' + e.message, 'error');
     }
   }
 
@@ -2180,10 +2330,15 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      alert(data.message);
+      if (!res.ok) {
+        this.showToast(data.error || 'Ошибка принятия заявки', 'error');
+        return;
+      }
+      this.showToast(data.message, 'success');
       this.loadFriendsTab();
+      this.checkFriendRequests();
     } catch (e) {
-      alert('Ошибка принятия заявки');
+      this.showToast('Ошибка принятия заявки: ' + e.message, 'error');
     }
   }
 
@@ -2276,16 +2431,31 @@ class SunnyKhakassiaApp {
       users.forEach(f => {
         const item = document.createElement('div');
         const isActive = this.currentChatDmUserId === f.id;
+        const unread = f.unread_count || 0;
         item.className = `chat-channel-item ${isActive ? 'active' : ''}`;
+        item.id = `dm-item-${f.id}`;
+
+        let subText = '';
+        if (f.last_message) {
+          subText = `<span style="${unread > 0 ? 'font-weight:600; color:#fff;' : 'color:var(--text-dim);'}">${this.escapeHTML(f.last_message.substring(0, 26))}</span>`;
+        } else {
+          subText = `@${this.escapeHTML(f.username)} • ${f.status === 'online' ? '<span style="color:#22c55e;">в сети</span>' : 'не в сети'}`;
+        }
+
         item.innerHTML = `
-          <div class="user-pill-avatar" id="dm-av-${f.id}" style="width:32px; height:32px;">👤</div>
-          <div class="channel-info">
-            <div class="channel-name">
-              ${this.escapeHTML(f.display_name)}
-              ${f.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
+          <div class="user-pill-avatar" id="dm-av-${f.id}" style="width:34px; height:34px; position:relative; flex-shrink:0;">👤</div>
+          <div class="channel-info" style="flex:1; min-width:0;">
+            <div class="channel-name" style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;">
+                ${this.escapeHTML(f.display_name)}
+                ${f.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
+              </span>
             </div>
-            <div class="channel-sub">@${this.escapeHTML(f.username)} • ${f.status === 'online' ? '<span style="color:#22c55e;">в сети</span>' : 'не в сети'}</div>
+            <div class="channel-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.75rem;">${subText}</div>
           </div>
+          <span class="channel-unread-pill dm-unread-badge ${unread > 0 ? '' : 'hidden'}" id="dm-badge-${f.id}">
+            ${unread > 99 ? '99+' : unread}
+          </span>
         `;
         item.onclick = () => this.startDmWithUser(f);
         this.chatDmList.appendChild(item);
@@ -2302,14 +2472,70 @@ class SunnyKhakassiaApp {
     this.currentChatDmUserId = user.id;
 
     document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
+    const activeItem = document.getElementById(`dm-item-${user.id}`);
+    if (activeItem) activeItem.classList.add('active');
+
+    const displayName = user.display_name || user.username || 'Собеседник';
+    const usernameText = user.username ? ` (@${user.username})` : '';
     this.chatActiveIcon.textContent = '👤';
-    this.chatActiveTitle.textContent = `${user.display_name} (@${user.username})`;
+    this.chatActiveTitle.textContent = `${displayName}${usernameText}`;
     this.chatActiveSubtitle.textContent = user.city ? `г. ${user.city}, Хакасия` : 'Личный чат';
+
+    // Отмечаем сообщения в диалоге как прочитанные
+    this.markDmAsRead(user.id);
 
     this.loadChatMessages();
     setTimeout(() => {
       if (this.chatMessageInput) this.chatMessageInput.focus();
     }, 150);
+  }
+
+  async markDmAsRead(senderId) {
+    if (!senderId) return;
+    try {
+      await fetch('/api/messages/read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`
+        },
+        body: JSON.stringify({ senderId })
+      });
+      const badge = document.getElementById(`dm-badge-${senderId}`);
+      if (badge) {
+        badge.textContent = '0';
+        badge.classList.add('hidden');
+      }
+      this.refreshUnreadChatBadge();
+    } catch (e) {}
+  }
+
+  async refreshUnreadChatBadge() {
+    if (!this.token) return;
+    try {
+      const res = await fetch('/api/messages/unread-count', {
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      const data = await res.json();
+      const count = data.unreadCount || 0;
+      this.chatUnreadTotal = count;
+      if (this.chatUnreadBadge) {
+        if (count > 0) {
+          this.chatUnreadBadge.textContent = count > 99 ? '99+' : count;
+          this.chatUnreadBadge.classList.remove('hidden');
+        } else {
+          this.chatUnreadBadge.classList.add('hidden');
+        }
+      }
+    } catch (e) {}
+  }
+
+  incrementChatUnreadBadge() {
+    this.chatUnreadTotal = (this.chatUnreadTotal || 0) + 1;
+    if (this.chatUnreadBadge) {
+      this.chatUnreadBadge.textContent = this.chatUnreadTotal > 99 ? '99+' : this.chatUnreadTotal;
+      this.chatUnreadBadge.classList.remove('hidden');
+    }
   }
 
   async loadChatMessages() {
@@ -2653,18 +2879,117 @@ class SunnyKhakassiaApp {
   }
 
   onNewChatMessage(msg) {
-    const isCurrentChat = (
-      (this.currentChatChannelId && msg.channel_id === this.currentChatChannelId) ||
-      (this.currentChatDmUserId && (
-        (msg.sender_id === this.currentChatDmUserId && msg.receiver_id === this.currentUser.id) ||
-        (msg.sender_id === this.currentUser.id && msg.receiver_id === this.currentChatDmUserId)
-      ))
+    const myId = this.currentUser ? this.currentUser.id : null;
+    const isFromMe = (msg.sender_id === myId);
+
+    // Активен ли в данный момент этот чат / ЛС на экране?
+    const isCurrentChannel = (
+      this.currentTab === 'chat' &&
+      this.currentChatChannelId &&
+      msg.channel_id === this.currentChatChannelId
     );
 
-    if (isCurrentChat) {
+    const isCurrentDm = (
+      this.currentTab === 'chat' &&
+      this.currentChatDmUserId && (
+        (msg.sender_id === this.currentChatDmUserId && msg.receiver_id === myId) ||
+        (msg.sender_id === myId && msg.receiver_id === this.currentChatDmUserId)
+      )
+    );
+
+    // 1. Сообщение внутри открытого диалога
+    if (isCurrentChannel || isCurrentDm) {
       this.appendChatMessageDOM(msg);
       this.scrollChatBottom();
+      if (!isFromMe) {
+        window.soundFX && window.soundFX.playReceive();
+        if (isCurrentDm) {
+          this.markDmAsRead(msg.sender_id);
+        }
+      }
+      return;
+    }
+
+    // Сообщения от самого себя не требуют фоновых уведомлений
+    if (isFromMe) return;
+
+    // 2. Входящее личное сообщение (ЛС)
+    if (msg.receiver_id === myId) {
       window.soundFX && window.soundFX.playReceive();
+
+      const senderName = msg.sender_display_name || msg.sender_username || 'Земляк';
+      const previewText = msg.content || (msg.attachment_type === 'voice' ? '🎤 Голосовое сообщение' : '📎 Вложение');
+
+      // Показываем интерактивное всплывающее уведомление
+      this.showToast({
+        title: `💬 Сообщение от ${senderName}`,
+        message: previewText,
+        type: 'message',
+        avatar: msg.sender_avatar,
+        duration: 7000,
+        onClick: () => {
+          this.startDmWithUser({
+            id: msg.sender_id,
+            username: msg.sender_username,
+            display_name: msg.sender_display_name,
+            avatar: msg.sender_avatar
+          });
+        }
+      });
+
+      // Увеличиваем общий бейдж чата в навигационной панели
+      this.incrementChatUnreadBadge();
+
+      // Обновляем диалог в боковой панели (перемещаем наверх и ставим бейдж)
+      this.updateDmItemOnIncomingMessage(msg);
+      return;
+    }
+
+    // 3. Сообщение в общем чате / канале (когда пользователь на другой вкладке)
+    if (msg.channel_id) {
+      window.soundFX && window.soundFX.playPop();
+
+      if (this.currentTab !== 'chat') {
+        this.incrementChatUnreadBadge();
+      }
+
+      // Если вкладка чат открыта, но открыт другой канал или ЛС — помечаем канал
+      const chItem = document.getElementById(msg.channel_id === 1 ? 'chatGeneralChannelBtn' : `chat-channel-${msg.channel_id}`);
+      if (chItem && !chItem.classList.contains('active')) {
+        let pill = chItem.querySelector('.channel-unread-pill');
+        if (!pill) {
+          pill = document.createElement('span');
+          pill.className = 'channel-unread-pill';
+          pill.textContent = '1';
+          chItem.appendChild(pill);
+        } else {
+          pill.classList.remove('hidden');
+          const current = parseInt(pill.textContent) || 0;
+          pill.textContent = (current + 1).toString();
+        }
+      }
+    }
+  }
+
+  updateDmItemOnIncomingMessage(msg) {
+    if (!this.chatDmList) return;
+    const senderId = msg.sender_id;
+    const item = document.getElementById(`dm-item-${senderId}`);
+
+    if (item) {
+      this.chatDmList.prepend(item);
+      const badge = item.querySelector('.dm-unread-badge');
+      if (badge) {
+        const count = (parseInt(badge.textContent) || 0) + 1;
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('hidden');
+      }
+      const sub = item.querySelector('.channel-sub');
+      if (sub) {
+        sub.innerHTML = `<span style="font-weight:600; color:#fff;">${this.escapeHTML((msg.content || '📎 Вложение').substring(0, 26))}</span>`;
+      }
+    } else {
+      this.loadChatDms();
     }
   }
 
@@ -2912,7 +3237,11 @@ class SunnyKhakassiaApp {
       }
       this.initWebSocket();
       this.loadNotifications();
-      setInterval(() => this.loadNotifications(), 15000);
+      this.refreshUnreadChatBadge();
+      setInterval(() => {
+        this.loadNotifications();
+        this.refreshUnreadChatBadge();
+      }, 15000);
       this.switchTab('feed');
       this.checkFriendRequests();
     } catch (err) {
@@ -2953,7 +3282,11 @@ class SunnyKhakassiaApp {
       this.updateNavbarUser();
       this.initWebSocket();
       this.loadNotifications();
-      setInterval(() => this.loadNotifications(), 15000);
+      this.refreshUnreadChatBadge();
+      setInterval(() => {
+        this.loadNotifications();
+        this.refreshUnreadChatBadge();
+      }, 15000);
       this.handleRoute(window.location.pathname);
       this.checkFriendRequests();
     } catch (err) {
@@ -3689,3 +4022,17 @@ class SunnyKhakassiaApp {
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new SunnyKhakassiaApp();
 });
+
+// Глобальная замена стандартного браузерного alert() на стильные плавающие тосты
+window.alert = function(msg) {
+  if (window.app && typeof window.app.showToast === 'function') {
+    window.app.showToast(msg, 'info');
+  } else {
+    console.warn('[Alert]', msg);
+  }
+};
+window.showToast = function(msg, type, opts) {
+  if (window.app && typeof window.app.showToast === 'function') {
+    window.app.showToast(msg, type, opts);
+  }
+};

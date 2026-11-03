@@ -225,6 +225,14 @@ function initDatabase() {
     db.exec(`ALTER TABLE channels ADD COLUMN pinned_message_id INTEGER DEFAULT NULL`);
   } catch (e) {}
 
+  // Migrations for messages table (is_read column for unread DM counters)
+  try {
+    db.exec(`ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0`);
+  } catch (e) {}
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read)`);
+  } catch (e) {}
+
   // Create tracks and user_saved_tracks tables
   db.exec(`
     CREATE TABLE IF NOT EXISTS tracks (

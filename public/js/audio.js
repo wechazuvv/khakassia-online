@@ -175,3 +175,98 @@ class KhakassiaAudioPlayer {
 }
 
 window.khakassiaMusic = new KhakassiaAudioPlayer();
+
+/**
+ * ЗВУКОВЫЕ ЭФФЕКТЫ ИНТЕРФЕЙСА (Web Audio API Synthesizer)
+ * Приятные ненавязчивые звуки входящих сообщений, отправки и лайков
+ */
+class SoundFX {
+  constructor() {
+    this.ctx = null;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
+  // Приятный двухтональный колокольчик при входящем сообщении
+  playReceive() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, t); // D5
+      osc2.frequency.setValueAtTime(880, t + 0.08); // A5
+
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc1.start(t);
+      osc1.stop(t + 0.09);
+      osc2.start(t + 0.08);
+      osc2.stop(t + 0.48);
+    } catch (e) {}
+  }
+
+  // Мягкий свистящий клик при отправке
+  playSend() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.exponentialRampToValueAtTime(760, t + 0.08);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.13);
+    } catch (e) {}
+  }
+
+  // Легкий щелчок для лайков и реакций
+  playPop() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(340, t);
+      osc.frequency.exponentialRampToValueAtTime(560, t + 0.04);
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    } catch (e) {}
+  }
+}
+
+window.soundFX = new SoundFX();
+['click', 'keydown', 'touchstart'].forEach(evt => {
+  window.addEventListener(evt, () => window.soundFX && window.soundFX.init(), { once: true });
+});

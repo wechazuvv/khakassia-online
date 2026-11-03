@@ -3390,3 +3390,164 @@ a {
   border-color: #ffb800;
   transform: scale(1.1);
 }
+
+/* ==========================================================================
+   TOAST NOTIFICATIONS (Стильные всплывающие уведомления вместо alert)
+   ========================================================================== */
+.toast-container {
+  position: fixed;
+  top: 76px;
+  right: 20px;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  width: calc(100vw - 32px);
+  pointer-events: none;
+}
+@media (max-width: 768px) {
+  .toast-container {
+    top: 66px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 16px;
+  background: rgba(16, 22, 34, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 0, 0, 0.25);
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease;
+  overflow: hidden;
+}
+.toast.toast-show {
+  transform: translateX(0);
+  opacity: 1;
+}
+.toast.toast-hide {
+  transform: translateX(120%);
+  opacity: 0;
+}
+.toast-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.toast-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 184, 0, 0.5);
+  background: var(--bg-card);
+}
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+.toast-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #fff;
+  margin-bottom: 2px;
+  line-height: 1.25;
+}
+.toast-body {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.toast-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.toast-close:hover {
+  color: #fff;
+}
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--solar-gold, #ffb800);
+  opacity: 0.85;
+  transform-origin: left;
+}
+.toast.toast-success {
+  border-left: 4px solid #22c55e;
+}
+.toast.toast-success .toast-progress {
+  background: #22c55e;
+}
+.toast.toast-error {
+  border-left: 4px solid #ef4444;
+}
+.toast.toast-error .toast-progress {
+  background: #ef4444;
+}
+.toast.toast-warning {
+  border-left: 4px solid #f59e0b;
+}
+.toast.toast-warning .toast-progress {
+  background: #f59e0b;
+}
+.toast.toast-info {
+  border-left: 4px solid #3b82f6;
+}
+.toast.toast-info .toast-progress {
+  background: #3b82f6;
+}
+.toast.toast-message {
+  border-left: 4px solid #ffb800;
+  background: linear-gradient(135deg, rgba(18, 24, 38, 0.98), rgba(36, 26, 12, 0.98));
+}
+.toast.toast-message .toast-progress {
+  background: #ffb800;
+}
+
+/* Беджи непрочитанных сообщений в каналах и ЛС */
+.channel-unread-pill {
+  margin-left: auto;
+  background: var(--solar-gold, #ffb800);
+  color: #0b0f17;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  min-width: 18px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(255, 184, 0, 0.35);
+  flex-shrink: 0;
+}
+.tab-badge {
+  animation: badgePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes badgePop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}

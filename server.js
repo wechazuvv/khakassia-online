@@ -1355,30 +1355,77 @@ app.get('/api/messages', authMiddleware, (req, res) => {
   }
 });
 
-// Список диалогов в ЛС
+// Количество непрочитанных сообщений в ЛС
+app.get('/api/messages/unread-count', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM messages 
+      WHERE receiver_id = ? AND is_read = 0
+    `).get(req.user.id);
+    res.json({ unreadCount: row ? row.count : 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Ошибка получения непрочитанных' });
+  }
+});
+
+// Отметить сообщения в ЛС как прочитанные
+app.post('/api/messages/read', authMiddleware, (req, res) => {
+  try {
+    const senderId = Number(req.body.senderId);
+    if (senderId) {
+      db.prepare(`
+        UPDATE messages 
+        SET is_read = 1 
+        WHERE receiver_id = ? AND sender_id = ? AND is_read = 0
+      `).run(req.user.id, senderId);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Ошибка обновления статуса' });
+  }
+});
+
+// Список диалогов в ЛС (с последним сообщением и количеством непрочитанных)
 app.get('/api/conversations', authMiddleware, (req, res) => {
   try {
     const myId = req.user.id;
     const rows = db.prepare(`
-      SELECT DISTINCT 
-        CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END as other_id
+      SELECT 
+        CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END as other_id,
+        MAX(id) as last_msg_id
       FROM messages
       WHERE (sender_id = ? AND receiver_id IS NOT NULL)
          OR (receiver_id = ? AND sender_id IS NOT NULL)
+      GROUP BY other_id
+      ORDER BY last_msg_id DESC
     `).all(myId, myId, myId);
 
-    const userIds = rows.map(r => r.other_id).filter(id => id && id !== myId);
-    if (userIds.length === 0) {
-      return res.json({ conversations: [] });
+    const conversations = [];
+    for (const r of rows) {
+      if (!r.other_id || r.other_id === myId) continue;
+      const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_banned = 0').get(r.other_id);
+      if (!user) continue;
+
+      const lastMsg = db.prepare(`
+        SELECT content, attachment_type, sender_id, created_at 
+        FROM messages WHERE id = ?
+      `).get(r.last_msg_id);
+
+      const unreadCount = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM messages 
+        WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+      `).get(r.other_id, myId).count;
+
+      const sanitized = sanitizeUser(user);
+      sanitized.last_message = lastMsg ? (lastMsg.content || (lastMsg.attachment_type === 'voice' ? '🎤 Голосовое сообщение' : '📎 Вложение')) : '';
+      sanitized.last_message_time = lastMsg ? lastMsg.created_at : '';
+      sanitized.unread_count = unreadCount || 0;
+      conversations.push(sanitized);
     }
 
-    const placeholders = userIds.map(() => '?').join(',');
-    const users = db.prepare(`
-      SELECT * FROM users 
-      WHERE id IN (${placeholders}) AND is_banned = 0
-    `).all(...userIds);
-
-    res.json({ conversations: users.map(sanitizeUser) });
+    res.json({ conversations });
   } catch (err) {
     console.error('Fetch conversations error:', err);
     res.status(500).json({ error: 'Ошибка загрузки диалогов' });
@@ -1639,6 +1686,17 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      // Heartbeat ping / pong для постоянного поддержания соединения на Render и в браузере
+      if (data.type === 'ping') {
+        if (currentUser) {
+          db.prepare("UPDATE users SET last_seen = datetime('now') WHERE id = ?").run(currentUser.id);
+        }
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'pong' }));
+        }
+        return;
+      }
+
       if (!currentUser || currentUser.is_banned) return;
 
       if (data.type === 'send_message') {
@@ -1682,6 +1740,10 @@ wss.on('connection', (ws) => {
         if (targetChannel) {
           broadcastAll({ type: 'new_message', message: newMsg });
         } else if (targetReceiver) {
+          // Создаем системное уведомление для получателя ЛС
+          const snippet = cleanContent ? (cleanContent.length > 50 ? cleanContent.substring(0, 50) + '...' : cleanContent) : (attType === 'voice' ? '🎤 Голосовое сообщение' : '📎 Вложение');
+          createNotification(targetReceiver, currentUser.id, 'dm', 'user', currentUser.id, snippet);
+
           sendToUser(currentUser.id, { type: 'new_message', message: newMsg });
           sendToUser(targetReceiver, { type: 'new_message', message: newMsg });
         }
@@ -1715,6 +1777,17 @@ wss.on('connection', (ws) => {
     }
   });
 });
+
+// Периодический ping для поддержания постоянного соединения через Render и облачные прокси
+setInterval(() => {
+  for (const [ws] of clients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.ping();
+      } catch (e) {}
+    }
+  }
+}, 25000);
 
 // Fallback to index.html for SPA routes (e.g. /u/:username, /chat, /friends, /feed)
 app.use((req, res) => {
