@@ -38,9 +38,13 @@
           <span class="tab-icon">🎵</span>
           <span class="tab-title">Музыка</span>
         </button>
-        <button class="nav-tab" data-tab="friends" id="tabBtnFriends">
+        <button class="nav-tab" data-tab="people" id="tabBtnPeople">
           <span class="tab-icon">👥</span>
-          <span class="tab-title">Люди & Друзья</span>
+          <span class="tab-title">Жители</span>
+        </button>
+        <button class="nav-tab" data-tab="friends" id="tabBtnFriends">
+          <span class="tab-icon">🤝</span>
+          <span class="tab-title">Друзья</span>
           <span class="tab-badge warning hidden" id="friendsRequestsBadge">0</span>
         </button>
         <button class="nav-tab" data-tab="profile" id="tabBtnProfile">
@@ -328,12 +332,19 @@
 
           <div class="chat-main-area">
             <div class="chat-main-header">
+              <button type="button" class="btn-chat-back" id="btnChatBack" title="Назад ко всем чатам">←</button>
               <div class="chat-header-info">
                 <span class="chat-header-icon" id="chatActiveIcon">☀️</span>
-                <div>
+                <div style="min-width:0;">
                   <h3 id="chatActiveTitle">Общий чат Хакасии</h3>
                   <p id="chatActiveSubtitle">Главная беседка для общения всех жителей и гостей республики</p>
                 </div>
+              </div>
+              <div class="chat-header-actions">
+                <button type="button" class="btn-chat-action" id="btnGoGeneralChat" title="Перейти в Главный общий чат">☀️ В общий</button>
+                <button type="button" class="btn-chat-action" id="btnOpenInviteFriends" title="Пригласить друзей в беседу">👥 Пригласить</button>
+                <button type="button" class="btn-chat-action btn-danger-action hidden" id="btnDeleteCurrentChannel" title="Удалить эту беседку">🗑️ Удалить</button>
+                <button type="button" class="btn-chat-action btn-danger-action hidden" id="btnClearDmHistory" title="Очистить переписку">🗑️ Очистить</button>
               </div>
             </div>
 
@@ -423,16 +434,17 @@
 
             <div class="music-search-bar">
               <span class="music-search-icon">🔍</span>
-              <input type="text" id="musicSearchInput" placeholder="Поиск по названию трека, исполнителю или жанру...">
+              <input type="text" id="musicSearchInput" placeholder="Поиск любой песни или исполнителя (Miyagi, Кино, Баста, Eminem, Anna Asti...)" autocomplete="off">
               <button type="button" class="btn-search-clear hidden" id="btnClearMusicSearch">✕</button>
             </div>
 
             <div class="music-genre-chips" id="musicGenreChips">
-              <button type="button" class="genre-chip active" data-genre="all">Вся музыка</button>
-              <button type="button" class="genre-chip" data-genre="Хакасия & Этника">Хакасия & Этника</button>
-              <button type="button" class="genre-chip" data-genre="Релакс & Природа">Релакс & Природа</button>
-              <button type="button" class="genre-chip" data-genre="Хакасия & Сибирь">Хакасия & Сибирь</button>
+              <button type="button" class="genre-chip active" data-genre="all">🔥 Любая музыка</button>
               <button type="button" class="genre-chip" data-genre="saved">💾 Мои сохранённые</button>
+              <button type="button" class="genre-chip" data-genre="Miyagi">Miyagi</button>
+              <button type="button" class="genre-chip" data-genre="Кино">Кино (Цой)</button>
+              <button type="button" class="genre-chip" data-genre="Баста">Баста</button>
+              <button type="button" class="genre-chip" data-genre="Хакасия">Хакасия & Этника</button>
             </div>
           </div>
 
@@ -445,30 +457,62 @@
       </section>
 
       <!-- ========================================================
-           TAB 3: FRIENDS & USERS (ДРУЗЬЯ И ЗЕМЛЯКИ)
+           TAB: PEOPLE (ЖИТЕЛИ ХАКАСИИ / ЗЕМЛЯКИ)
+           ======================================================== -->
+      <section class="tab-view hidden" id="viewPeople">
+        <div class="friends-layout">
+          <div class="friends-header-bar">
+            <div>
+              <h2>🌍 Жители Республики Хакасия</h2>
+              <p style="font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Земляки со всех городов и районов Хакасии</p>
+            </div>
+            <div class="friends-search-box">
+              <input type="text" id="peopleSearchInput" placeholder="Поиск по имени, @юзернейму или городу...">
+            </div>
+          </div>
+
+          <!-- Quick City Filter Chips -->
+          <div class="people-city-chips" id="peopleCityChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;">
+            <button type="button" class="genre-chip active" data-city="all">Все города</button>
+            <button type="button" class="genre-chip" data-city="Абакан">Абакан</button>
+            <button type="button" class="genre-chip" data-city="Черногорск">Черногорск</button>
+            <button type="button" class="genre-chip" data-city="Саяногорск">Саяногорск</button>
+            <button type="button" class="genre-chip" data-city="Усть-Абакан">Усть-Абакан</button>
+            <button type="button" class="genre-chip" data-city="Сорск">Сорск</button>
+            <button type="button" class="genre-chip" data-city="Абаза">Абаза</button>
+            <button type="button" class="genre-chip" data-city="Шира">Шира</button>
+            <button type="button" class="genre-chip" data-city="Аскиз">Аскиз</button>
+          </div>
+
+          <div class="friends-section">
+            <div class="users-grid" id="allUsersGrid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB: FRIENDS (МОИ ДРУЗЬЯ И ЗАЯВКИ)
            ======================================================== -->
       <section class="tab-view hidden" id="viewFriends">
         <div class="friends-layout">
           <div class="friends-header-bar">
-            <h2>Земляки и Друзья</h2>
+            <div>
+              <h2>🤝 Мои друзья</h2>
+              <p style="font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Ваш круг общения в Хакасии</p>
+            </div>
             <div class="friends-search-box">
-              <input type="text" id="friendsSearchInput" placeholder="Поиск по имени, @юзу или городу...">
+              <input type="text" id="friendsSearchInput" placeholder="Поиск среди ваших друзей...">
             </div>
           </div>
 
           <div class="friends-section hidden" id="incomingRequestsSection">
-            <h3 class="friends-section-title">🔔 Заявки в друзья (<span id="incomingCount">0</span>)</h3>
+            <h3 class="friends-section-title">🔔 Входящие заявки в друзья (<span id="incomingCount">0</span>)</h3>
             <div class="users-grid" id="incomingRequestsGrid"></div>
           </div>
 
           <div class="friends-section">
-            <h3 class="friends-section-title">🤝 Мои друзья (<span id="myFriendsCount">0</span>)</h3>
+            <h3 class="friends-section-title">🤝 Список друзей (<span id="myFriendsCount">0</span>)</h3>
             <div class="users-grid" id="myFriendsGrid"></div>
-          </div>
-
-          <div class="friends-section">
-            <h3 class="friends-section-title">🌍 Все жители Хакасии</h3>
-            <div class="users-grid" id="allUsersGrid"></div>
           </div>
         </div>
       </section>
@@ -970,6 +1014,25 @@
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="btnCancelAdjustCover">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVITE FRIENDS TO CHAT MODAL -->
+  <div class="modal-backdrop hidden" id="inviteFriendsModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>👥 Пригласить друзей в беседу</h3>
+        <button type="button" class="btn-icon-sm" id="btnCloseInviteFriends">✕</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 14px;">
+        Выберите друзей, чтобы отправить им приглашение со ссылкой на эту беседу:
+      </p>
+      <div id="inviteFriendsList" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+        <!-- Friends rendered dynamically -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="btnCancelInviteFriends">Закрыть</button>
       </div>
     </div>
   </div>

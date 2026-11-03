@@ -2542,7 +2542,7 @@ a {
 
 .hidden { display: none !important; }
 
-/* Responsive */
+/* Responsive & Mobile Fullscreen Optimization */
 @media (max-width: 900px) {
   .feed-layout {
     grid-template-columns: 1fr;
@@ -2553,21 +2553,202 @@ a {
 }
 
 @media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+  
   .navbar {
-    padding: 0 12px;
+    padding: 0 10px;
+    height: 56px;
   }
   .tab-title {
-    display: none;
+    display: none !important;
   }
   .brand-domain {
-    display: none;
+    display: none !important;
   }
-  .chat-sidebar {
-    width: 80px;
+  .brand-title {
+    font-size: 0.95rem;
   }
-  .channel-info, .chat-sidebar-header h3, .dm-section-title span {
-    display: none;
+  .nav-tabs {
+    gap: 4px;
   }
+  .nav-tab {
+    padding: 6px 9px;
+    font-size: 0.85rem;
+  }
+  .user-pill {
+    padding: 3px;
+    border-radius: 50%;
+  }
+  .user-pill-info {
+    display: none !important;
+  }
+  .btn-moderation {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+  }
+
+  /* Chat mobile full-screen layout with Telegram-like navigation */
+  .chat-layout {
+    height: calc(100dvh - 56px);
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border: none;
+  }
+
+  .chat-layout:not(.mobile-chat-open) .chat-sidebar {
+    width: 100% !important;
+    display: flex !important;
+    border-right: none;
+  }
+
+  .chat-layout:not(.mobile-chat-open) .channel-info,
+  .chat-layout:not(.mobile-chat-open) .chat-sidebar-header h3,
+  .chat-layout:not(.mobile-chat-open) .dm-section-title span {
+    display: block !important;
+  }
+
+  .chat-layout:not(.mobile-chat-open) .chat-main-area {
+    display: none !important;
+  }
+
+  .chat-layout.mobile-chat-open .chat-sidebar {
+    display: none !important;
+  }
+
+  .chat-layout.mobile-chat-open .chat-main-area {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .btn-chat-back {
+    display: inline-flex !important;
+  }
+
+  .chat-main-header {
+    padding: 0 10px;
+    height: 54px;
+    gap: 8px;
+  }
+
+  .chat-header-actions {
+    gap: 4px;
+  }
+
+  .btn-chat-action {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  .feed-layout, .friends-layout, .profile-container, .music-layout {
+    padding: 12px 10px 50px;
+    max-width: 100%;
+  }
+}
+
+/* Chat Header Action Buttons & Back Button */
+.btn-chat-back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.btn-chat-back:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--solar-gold);
+  color: var(--solar-gold);
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.btn-chat-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.btn-chat-action:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--solar-gold);
+  color: var(--solar-gold);
+}
+.btn-chat-action.btn-danger-action {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.btn-chat-action.btn-danger-action:hover {
+  background: var(--accent-red);
+  color: #fff;
+  border-color: var(--accent-red);
+}
+
+/* Music Track Cover & Online Badge */
+.track-cover-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Invite Friends Modal Items */
+.invite-friend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  gap: 12px;
+}
+.invite-friend-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.invite-friend-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.invite-friend-sub {
+  font-size: 0.74rem;
+  color: var(--text-dim);
 }
 
 /* ==========================================================================
@@ -2859,6 +3040,12 @@ a {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.cover-buttons-group.hidden,
+.cover-buttons-group .btn-change-cover.hidden,
+.cover-buttons-group .btn-adjust-cover.hidden {
+  display: none !important;
 }
 
 .cover-buttons-group .btn-change-cover,

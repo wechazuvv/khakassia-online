@@ -201,7 +201,13 @@ class SunnyKhakassiaApp {
     this.profilePostsStream = document.getElementById('profilePostsStream');
     this.profileFriendsGrid = document.getElementById('profileFriendsGrid');
 
-    // Friends DOM
+    // Friends & People DOM
+    this.tabBtnPeople = document.getElementById('tabBtnPeople');
+    this.viewPeople = document.getElementById('viewPeople');
+    this.peopleSearchInput = document.getElementById('peopleSearchInput');
+    this.peopleCityChips = document.getElementById('peopleCityChips');
+    this.activeCityFilter = 'all';
+
     this.friendsSearchInput = document.getElementById('friendsSearchInput');
     this.incomingRequestsSection = document.getElementById('incomingRequestsSection');
     this.incomingCount = document.getElementById('incomingCount');
@@ -211,6 +217,16 @@ class SunnyKhakassiaApp {
     this.allUsersGrid = document.getElementById('allUsersGrid');
 
     // Chat DOM
+    this.btnChatBack = document.getElementById('btnChatBack');
+    this.btnGoGeneralChat = document.getElementById('btnGoGeneralChat');
+    this.btnOpenInviteFriends = document.getElementById('btnOpenInviteFriends');
+    this.btnDeleteCurrentChannel = document.getElementById('btnDeleteCurrentChannel');
+    this.btnClearDmHistory = document.getElementById('btnClearDmHistory');
+    this.inviteFriendsModal = document.getElementById('inviteFriendsModal');
+    this.btnCloseInviteFriends = document.getElementById('btnCloseInviteFriends');
+    this.btnCancelInviteFriends = document.getElementById('btnCancelInviteFriends');
+    this.inviteFriendsList = document.getElementById('inviteFriendsList');
+
     this.btnOpenCreateChannel = document.getElementById('btnOpenCreateChannel');
     this.createChannelModal = document.getElementById('createChannelModal');
     this.btnCloseCreateChannel = document.getElementById('btnCloseCreateChannel');
@@ -542,16 +558,37 @@ class SunnyKhakassiaApp {
 
     this.sideChatInviteBtn.addEventListener('click', () => this.switchTab('chat'));
 
-    this.chatGeneralChannelBtn.addEventListener('click', () => {
-      this.currentChatChannelId = 1;
-      this.currentChatDmUserId = null;
-      document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
-      this.chatGeneralChannelBtn.classList.add('active');
-      this.chatActiveIcon.textContent = '☀️';
-      this.chatActiveTitle.textContent = 'Общий чат Хакасии';
-      this.chatActiveSubtitle.textContent = 'Главная беседка для общения всех жителей и гостей республики';
-      this.loadChatMessages();
-    });
+    if (this.chatGeneralChannelBtn) {
+      this.chatGeneralChannelBtn.addEventListener('click', () => this.openGeneralChat());
+    }
+    if (this.btnGoGeneralChat) {
+      this.btnGoGeneralChat.addEventListener('click', () => this.openGeneralChat());
+    }
+    if (this.btnChatBack) {
+      this.btnChatBack.addEventListener('click', () => {
+        const chatLayout = document.querySelector('.chat-layout');
+        if (chatLayout) chatLayout.classList.remove('mobile-chat-open');
+      });
+    }
+    if (this.btnDeleteCurrentChannel) {
+      this.btnDeleteCurrentChannel.addEventListener('click', () => this.handleDeleteCurrentChannel());
+    }
+    if (this.btnClearDmHistory) {
+      this.btnClearDmHistory.addEventListener('click', () => this.handleClearDmHistory());
+    }
+    if (this.btnOpenInviteFriends) {
+      this.btnOpenInviteFriends.addEventListener('click', () => this.openInviteFriendsModal());
+    }
+    if (this.btnCloseInviteFriends) {
+      this.btnCloseInviteFriends.addEventListener('click', () => {
+        if (this.inviteFriendsModal) this.inviteFriendsModal.classList.add('hidden');
+      });
+    }
+    if (this.btnCancelInviteFriends) {
+      this.btnCancelInviteFriends.addEventListener('click', () => {
+        if (this.inviteFriendsModal) this.inviteFriendsModal.classList.add('hidden');
+      });
+    }
 
     this.chatForm.addEventListener('submit', (e) => this.handleSendChatMessage(e));
     this.btnChatAttach.addEventListener('click', () => this.chatFileInput.click());
@@ -626,10 +663,32 @@ class SunnyKhakassiaApp {
     this.btnCancelExternalLink.addEventListener('click', () => this.externalLinkModal.classList.add('hidden'));
 
     let friendsDebounce = null;
-    this.friendsSearchInput.addEventListener('input', (e) => {
-      clearTimeout(friendsDebounce);
-      friendsDebounce = setTimeout(() => this.loadAllUsers(e.target.value.trim()), 300);
-    });
+    if (this.friendsSearchInput) {
+      this.friendsSearchInput.addEventListener('input', (e) => {
+        clearTimeout(friendsDebounce);
+        friendsDebounce = setTimeout(() => this.loadMyFriends(e.target.value.trim()), 300);
+      });
+    }
+
+    let peopleDebounce = null;
+    if (this.peopleSearchInput) {
+      this.peopleSearchInput.addEventListener('input', (e) => {
+        clearTimeout(peopleDebounce);
+        peopleDebounce = setTimeout(() => this.loadAllUsers(e.target.value.trim(), this.activeCityFilter), 300);
+      });
+    }
+
+    if (this.peopleCityChips) {
+      this.peopleCityChips.addEventListener('click', (e) => {
+        const chip = e.target.closest('.genre-chip');
+        if (!chip) return;
+        this.peopleCityChips.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        this.activeCityFilter = chip.dataset.city || 'all';
+        const q = this.peopleSearchInput ? this.peopleSearchInput.value.trim() : '';
+        this.loadAllUsers(q, this.activeCityFilter);
+      });
+    }
 
     this.authTabLogin.addEventListener('click', () => this.switchAuthTab('login'));
     this.authTabRegister.addEventListener('click', () => this.switchAuthTab('register'));
@@ -766,6 +825,8 @@ class SunnyKhakassiaApp {
         history.pushState({ tab: 'chat' }, '', '/chat');
       } else if (tabName === 'music') {
         history.pushState({ tab: 'music' }, '', '/music');
+      } else if (tabName === 'people') {
+        history.pushState({ tab: 'people' }, '', '/people');
       } else if (tabName === 'friends') {
         history.pushState({ tab: 'friends' }, '', '/friends');
       } else if (tabName === 'profile') {
@@ -782,6 +843,7 @@ class SunnyKhakassiaApp {
       document.getElementById('viewChat').classList.remove('hidden');
       this.loadChannels();
       this.loadChatDms();
+      this.updateChatHeaderActions();
       this.loadChatMessages();
       if (this.currentChatChannelId === 1) {
         this.chatUnreadTotal = 0;
@@ -790,6 +852,10 @@ class SunnyKhakassiaApp {
     } else if (tabName === 'music') {
       document.getElementById('viewMusic').classList.remove('hidden');
       this.loadMusicList();
+    } else if (tabName === 'people') {
+      const vp = document.getElementById('viewPeople');
+      if (vp) vp.classList.remove('hidden');
+      this.loadPeopleTab();
     } else if (tabName === 'friends') {
       document.getElementById('viewFriends').classList.remove('hidden');
       this.loadFriendsTab();
@@ -804,6 +870,10 @@ class SunnyKhakassiaApp {
     if (!pathname) return;
     if (pathname === '/music') {
       this.switchTab('music', false);
+      return;
+    }
+    if (pathname === '/people') {
+      this.switchTab('people', false);
       return;
     }
     if (pathname.startsWith('/u/')) {
@@ -970,6 +1040,14 @@ class SunnyKhakassiaApp {
 
       case 'new_channel':
         this.loadChannels();
+        break;
+
+      case 'channel_deleted':
+        this.loadChannels();
+        if (this.currentChatChannelId === data.channelId) {
+          this.showToast('Беседка была удалена', 'info');
+          this.openGeneralChat();
+        }
         break;
 
       case 'new_track':
@@ -2011,8 +2089,15 @@ class SunnyKhakassiaApp {
       if (this.profileCreatorBadge) {
         this.profileCreatorBadge.classList.toggle('hidden', !isCreator);
       }
+      const coverGroup = document.querySelector('.cover-buttons-group');
+      if (coverGroup) {
+        coverGroup.classList.toggle('hidden', !isMe);
+      }
       if (this.btnAdjustCover) {
         this.btnAdjustCover.classList.toggle('hidden', !isMe);
+      }
+      if (this.btnChangeCover) {
+        this.btnChangeCover.classList.toggle('hidden', !isMe);
       }
       if (this.profileCoverImg && u.cover_position) {
         this.profileCoverImg.style.objectPosition = u.cover_position;
@@ -2172,12 +2257,17 @@ class SunnyKhakassiaApp {
   }
 
   // =========================================================================
-  // FRIENDS TAB & SYSTEM
+  // FRIENDS & PEOPLE (ЖИТЕЛИ И ДРУЗЬЯ ХАКАСИИ)
   // =========================================================================
   async loadFriendsTab() {
     this.checkFriendRequests();
-    this.loadMyFriends();
-    this.loadAllUsers();
+    const q = this.friendsSearchInput ? this.friendsSearchInput.value.trim() : '';
+    this.loadMyFriends(q);
+  }
+
+  async loadPeopleTab() {
+    const q = this.peopleSearchInput ? this.peopleSearchInput.value.trim() : '';
+    await this.loadAllUsers(q, this.activeCityFilter);
   }
 
   async checkFriendRequests() {
@@ -2189,54 +2279,69 @@ class SunnyKhakassiaApp {
       const incoming = data.incoming || [];
 
       if (incoming.length > 0) {
-        this.friendsRequestsBadge.textContent = incoming.length;
-        this.friendsRequestsBadge.classList.remove('hidden');
-        this.incomingRequestsSection.classList.remove('hidden');
-        this.incomingCount.textContent = incoming.length;
+        if (this.friendsRequestsBadge) {
+          this.friendsRequestsBadge.textContent = incoming.length;
+          this.friendsRequestsBadge.classList.remove('hidden');
+        }
+        if (this.incomingRequestsSection) this.incomingRequestsSection.classList.remove('hidden');
+        if (this.incomingCount) this.incomingCount.textContent = incoming.length;
 
-        this.incomingRequestsGrid.innerHTML = '';
-        incoming.forEach(req => {
-          const card = document.createElement('div');
-          card.className = 'user-card-item';
-          card.innerHTML = `
-            <div class="user-card-top" onclick="app.openUserProfile('${req.username}')">
-              <div class="user-pill-avatar" id="req-av-${req.id}" style="width:44px; height:44px;">👤</div>
-              <div class="user-card-details">
-                <span class="user-card-name">
-                  ${this.escapeHTML(req.display_name)}
-                  ${req.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
-                </span>
-                <span class="user-card-handle">@${this.escapeHTML(req.username)}</span>
-                <span class="user-card-city">📍 ${this.escapeHTML(req.city || 'Хакасия')}</span>
+        if (this.incomingRequestsGrid) {
+          this.incomingRequestsGrid.innerHTML = '';
+          incoming.forEach(req => {
+            const card = document.createElement('div');
+            card.className = 'user-card-item';
+            card.innerHTML = `
+              <div class="user-card-top" onclick="app.openUserProfile('${req.username}')">
+                <div class="user-pill-avatar" id="req-av-${req.id}" style="width:44px; height:44px;">👤</div>
+                <div class="user-card-details">
+                  <span class="user-card-name">
+                    ${this.escapeHTML(req.display_name)}
+                    ${req.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
+                  </span>
+                  <span class="user-card-handle">@${this.escapeHTML(req.username)}</span>
+                  <span class="user-card-city">📍 ${this.escapeHTML(req.city || 'Хакасия')}</span>
+                </div>
               </div>
-            </div>
-            <div class="user-card-actions">
-              <button class="btn-primary" style="flex:1;" onclick="app.acceptFriendRequest(${req.request_id})">Принять ✔️</button>
-              <button class="btn-secondary" onclick="app.removeFriend(${req.id})">Отклонить</button>
-            </div>
-          `;
-          this.incomingRequestsGrid.appendChild(card);
-          this.renderAvatarInto(req.avatar, card.querySelector(`#req-av-${req.id}`));
-        });
+              <div class="user-card-actions">
+                <button class="btn-primary" style="flex:1;" onclick="app.acceptFriendRequest(${req.request_id})">Принять ✔️</button>
+                <button class="btn-secondary" onclick="app.removeFriend(${req.id})">Отклонить</button>
+              </div>
+            `;
+            this.incomingRequestsGrid.appendChild(card);
+            this.renderAvatarInto(req.avatar, card.querySelector(`#req-av-${req.id}`));
+          });
+        }
       } else {
-        this.friendsRequestsBadge.classList.add('hidden');
-        this.incomingRequestsSection.classList.add('hidden');
+        if (this.friendsRequestsBadge) this.friendsRequestsBadge.classList.add('hidden');
+        if (this.incomingRequestsSection) this.incomingRequestsSection.classList.add('hidden');
       }
     } catch (e) {}
   }
 
-  async loadMyFriends() {
+  async loadMyFriends(query = '') {
     try {
+      if (!this.myFriendsGrid) return;
       const res = await fetch('/api/friends', {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      const friends = data.friends || [];
-      this.myFriendsCount.textContent = friends.length;
+      let friends = data.friends || [];
+      if (query) {
+        const q = query.toLowerCase();
+        friends = friends.filter(f => 
+          (f.display_name && f.display_name.toLowerCase().includes(q)) || 
+          (f.username && f.username.toLowerCase().includes(q)) ||
+          (f.city && f.city.toLowerCase().includes(q))
+        );
+      }
+      if (this.myFriendsCount) this.myFriendsCount.textContent = (data.friends || []).length;
 
       this.myFriendsGrid.innerHTML = '';
       if (friends.length === 0) {
-        this.myFriendsGrid.innerHTML = '<div style="color:var(--text-dim); padding:10px; grid-column:1/-1;">У вас пока нет добавленных друзей. Найдите земляков ниже и добавьте их!</div>';
+        this.myFriendsGrid.innerHTML = '<div style="color:var(--text-dim); padding:20px 10px; grid-column:1/-1;">' + 
+          (query ? 'Друзей по данному запросу не найдено.' : 'У вас пока нет добавленных друзей. Перейдите во вкладку «Жители», чтобы найти земляков!') + 
+        '</div>';
         return;
       }
       friends.forEach(f => {
@@ -2245,25 +2350,34 @@ class SunnyKhakassiaApp {
     } catch (e) {}
   }
 
-  async loadAllUsers(query = '') {
+  async loadAllUsers(query = '', city = '') {
     try {
+      if (!this.allUsersGrid) return;
+      this.allUsersGrid.innerHTML = '<div class="spinner"></div>';
       let url = '/api/users';
       if (query) url += `?q=${encodeURIComponent(query)}`;
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      const users = (data.users || []).filter(u => this.currentUser && u.id !== this.currentUser.id);
+      let users = (data.users || []).filter(u => this.currentUser && u.id !== this.currentUser.id);
+
+      if (city && city !== 'all') {
+        const cLower = city.toLowerCase();
+        users = users.filter(u => u.city && u.city.toLowerCase().includes(cLower));
+      }
 
       this.allUsersGrid.innerHTML = '';
       if (users.length === 0) {
-        this.allUsersGrid.innerHTML = '<div style="color:var(--text-dim); padding:10px; grid-column:1/-1;">Никого не найдено.</div>';
+        this.allUsersGrid.innerHTML = '<div style="color:var(--text-dim); padding:20px 10px; grid-column:1/-1; text-align:center;">Земляков не найдено. Попробуйте выбрать другой город или изменить поисковый запрос!</div>';
         return;
       }
       users.forEach(u => {
-        this.allUsersGrid.appendChild(this.createUserCard(u));
+        this.allUsersGrid.appendChild(this.createUserCard(u, false));
       });
-    } catch (e) {}
+    } catch (e) {
+      if (this.allUsersGrid) this.allUsersGrid.innerHTML = `<div style="color:var(--accent-red); padding:10px;">Ошибка загрузки пользователей: ${e.message}</div>`;
+    }
   }
 
   createUserCard(user, isAlreadyFriend = false) {
@@ -2317,6 +2431,7 @@ class SunnyKhakassiaApp {
         this.openUserProfile(this.activeProfileUser.username);
       } else {
         this.loadFriendsTab();
+        this.loadPeopleTab();
       }
     } catch (e) {
       this.showToast('Ошибка при отправке заявки: ' + e.message, 'error');
@@ -2336,6 +2451,7 @@ class SunnyKhakassiaApp {
       }
       this.showToast(data.message, 'success');
       this.loadFriendsTab();
+      this.loadPeopleTab();
       this.checkFriendRequests();
     } catch (e) {
       this.showToast('Ошибка принятия заявки: ' + e.message, 'error');
@@ -2360,6 +2476,7 @@ class SunnyKhakassiaApp {
         this.openUserProfile(this.activeProfileUser.username);
       } else {
         this.loadFriendsTab();
+        this.loadPeopleTab();
       }
     } catch (e) {}
   }
@@ -2395,6 +2512,197 @@ class SunnyKhakassiaApp {
     }
   }
 
+  openGeneralChat() {
+    this.currentChatChannelId = 1;
+    this.currentChatDmUserId = null;
+    document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
+    if (this.chatGeneralChannelBtn) this.chatGeneralChannelBtn.classList.add('active');
+    this.chatActiveIcon.textContent = '☀️';
+    this.chatActiveTitle.textContent = 'Общий чат Хакасии';
+    this.chatActiveSubtitle.textContent = 'Главная беседка для общения всех жителей и гостей республики';
+    this.updateChatHeaderActions();
+    this.loadChatMessages();
+  }
+
+  updateChatHeaderActions() {
+    const chatLayout = document.querySelector('.chat-layout');
+    if (chatLayout) chatLayout.classList.add('mobile-chat-open');
+
+    if (this.currentChatDmUserId) {
+      if (this.btnGoGeneralChat) this.btnGoGeneralChat.classList.remove('hidden');
+      if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.add('hidden');
+      if (this.btnDeleteCurrentChannel) this.btnDeleteCurrentChannel.classList.add('hidden');
+      if (this.btnClearDmHistory) this.btnClearDmHistory.classList.remove('hidden');
+    } else if (this.currentChatChannelId === 1) {
+      if (this.btnGoGeneralChat) this.btnGoGeneralChat.classList.add('hidden');
+      if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.remove('hidden');
+      if (this.btnDeleteCurrentChannel) this.btnDeleteCurrentChannel.classList.add('hidden');
+      if (this.btnClearDmHistory) this.btnClearDmHistory.classList.add('hidden');
+    } else {
+      if (this.btnGoGeneralChat) this.btnGoGeneralChat.classList.remove('hidden');
+      if (this.btnOpenInviteFriends) this.btnOpenInviteFriends.classList.remove('hidden');
+      if (this.btnClearDmHistory) this.btnClearDmHistory.classList.add('hidden');
+
+      const currentChannel = (this.channels || []).find(c => c.id === this.currentChatChannelId);
+      const isCreatorOrAdmin = this.currentUser && currentChannel && (
+        currentChannel.created_by === this.currentUser.id || 
+        this.currentUser.role === 'admin' || 
+        this.currentUser.username === 'wechazuv'
+      );
+      if (this.btnDeleteCurrentChannel) {
+        this.btnDeleteCurrentChannel.classList.toggle('hidden', !isCreatorOrAdmin);
+      }
+    }
+  }
+
+  async handleDeleteCurrentChannel() {
+    if (!this.currentChatChannelId || this.currentChatChannelId === 1) return;
+    const ok = await this.showConfirmDialog({
+      title: 'Удалить беседку?',
+      message: 'Вы уверены, что хотите удалить эту беседку? Все сообщения в ней будут стёрты.',
+      confirmText: 'Удалить 🗑️',
+      isDanger: true,
+      icon: '🗑️'
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/channels/${this.currentChatChannelId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка удаления беседки');
+
+      this.showToast('Беседка успешно удалена', 'success');
+      await this.loadChannels();
+      this.openGeneralChat();
+    } catch (e) {
+      this.showToast(e.message, 'error');
+    }
+  }
+
+  async handleClearDmHistory() {
+    if (!this.currentChatDmUserId) return;
+    const ok = await this.showConfirmDialog({
+      title: 'Очистить переписку?',
+      message: 'Вы уверены, что хотите удалить все сообщения в этом диалоге? Это действие нельзя отменить.',
+      confirmText: 'Очистить 🗑️',
+      isDanger: true,
+      icon: '🗑️'
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/conversations/${this.currentChatDmUserId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка очистки переписки');
+
+      this.showToast('Переписка очищена', 'success');
+      this.chatMessages = [];
+      this.chatMessagesList.innerHTML = `
+        <div style="text-align:center; padding:40px 20px; color:var(--text-dim);">
+          <div style="font-size:2rem; margin-bottom:8px;">💬</div>
+          <strong>Переписка пуста</strong>
+          <p style="font-size:0.8rem; margin-top:4px;">Напишите первое сообщение!</p>
+        </div>
+      `;
+      this.loadChatDms();
+    } catch (e) {
+      this.showToast(e.message, 'error');
+    }
+  }
+
+  async openInviteFriendsModal() {
+    if (!this.inviteFriendsModal || !this.inviteFriendsList) return;
+    this.inviteFriendsModal.classList.remove('hidden');
+    this.inviteFriendsList.innerHTML = '<div class="spinner"></div>';
+
+    try {
+      const res = await fetch('/api/friends', {
+        headers: { 'Authorization': `Bearer ${this.token}` }
+      });
+      const data = await res.json();
+      const friends = data.friends || [];
+
+      this.inviteFriendsList.innerHTML = '';
+      if (friends.length === 0) {
+        this.inviteFriendsList.innerHTML = `
+          <div style="text-align:center; padding:20px; color:var(--text-dim); font-size:0.88rem;">
+            У вас пока нет друзей для приглашения. Добавьте земляков во вкладке «Жители»!
+          </div>
+        `;
+        return;
+      }
+
+      const channelTitle = this.chatActiveTitle.textContent || 'Беседка Хакасии';
+      const channelId = this.currentChatChannelId || 1;
+
+      friends.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'invite-friend-item';
+        item.innerHTML = `
+          <div class="invite-friend-details">
+            <div class="user-pill-avatar" id="inv-av-${f.id}" style="width:36px; height:36px; flex-shrink:0;">👤</div>
+            <div style="min-width:0;">
+              <div class="invite-friend-name">${this.escapeHTML(f.display_name)} ${f.is_verified ? '✔️' : ''}</div>
+              <div class="invite-friend-sub">@${this.escapeHTML(f.username)} • 📍 ${this.escapeHTML(f.city || 'Хакасия')}</div>
+            </div>
+          </div>
+          <button type="button" class="btn-primary btn-invite-action" style="padding:6px 12px; font-size:0.8rem;">
+            📨 Пригласить
+          </button>
+        `;
+        const btnInvite = item.querySelector('.btn-invite-action');
+        btnInvite.onclick = () => {
+          this.sendChannelInviteToFriend(f, channelTitle, channelId, btnInvite);
+        };
+        this.inviteFriendsList.appendChild(item);
+        this.renderAvatarInto(f.avatar, item.querySelector(`#inv-av-${f.id}`));
+      });
+    } catch (e) {
+      this.inviteFriendsList.innerHTML = `<div style="color:var(--accent-red); padding:10px;">Ошибка загрузки списка друзей: ${e.message}</div>`;
+    }
+  }
+
+  async sendChannelInviteToFriend(friend, channelTitle, channelId, btn) {
+    try {
+      btn.disabled = true;
+      const inviteMsg = `☀️ Привет! Приглашаю тебя в беседку «${channelTitle}» на Хакасия Онлайн: https://khakassia-online.ru/chat`;
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(JSON.stringify({
+          type: 'chat_message',
+          channelId: null,
+          receiverId: friend.id,
+          content: inviteMsg,
+          attachment: null
+        }));
+      } else {
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.token}`
+          },
+          body: JSON.stringify({
+            receiverId: friend.id,
+            content: inviteMsg
+          })
+        });
+      }
+      btn.textContent = '✔️ Отправлено';
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+      this.showToast(`Приглашение отправлено ${friend.display_name}!`, 'success');
+    } catch (e) {
+      btn.disabled = false;
+      this.showToast('Ошибка отправки приглашения', 'error');
+    }
+  }
+
   switchChannel(ch) {
     this.currentChatChannelId = ch.id;
     this.currentChatDmUserId = null;
@@ -2404,6 +2712,7 @@ class SunnyKhakassiaApp {
     this.chatActiveIcon.textContent = ch.icon || '💬';
     this.chatActiveTitle.textContent = ch.name;
     this.chatActiveSubtitle.textContent = ch.description || 'Беседка Республики Хакасия';
+    this.updateChatHeaderActions();
     this.loadChatMessages();
   }
 
@@ -2480,6 +2789,8 @@ class SunnyKhakassiaApp {
     this.chatActiveIcon.textContent = '👤';
     this.chatActiveTitle.textContent = `${displayName}${usernameText}`;
     this.chatActiveSubtitle.textContent = user.city ? `г. ${user.city}, Хакасия` : 'Личный чат';
+
+    this.updateChatHeaderActions();
 
     // Отмечаем сообщения в диалоге как прочитанные
     this.markDmAsRead(user.id);
@@ -3543,25 +3854,40 @@ class SunnyKhakassiaApp {
     this.musicTracksList.innerHTML = '<div class="spinner"></div>';
     try {
       const q = this.musicSearchInput ? this.musicSearchInput.value.trim() : '';
-      let url = '/api/music?';
+      let tracks = [];
+
       if (this.activeMusicGenre === 'saved') {
-        url += 'mySaved=1&';
+        const res = await fetch('/api/music?mySaved=1', { headers: { 'Authorization': `Bearer ${this.token}` } });
+        const data = await res.json();
+        tracks = data.tracks || [];
+      } else if (q) {
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`, { headers: { 'Authorization': `Bearer ${this.token}` } });
+        const data = await res.json();
+        tracks = data.tracks || [];
       } else if (this.activeMusicGenre && this.activeMusicGenre !== 'all') {
-        url += `genre=${encodeURIComponent(this.activeMusicGenre)}&`;
+        const res = await fetch(`/api/music/search?q=${encodeURIComponent(this.activeMusicGenre)}`, { headers: { 'Authorization': `Bearer ${this.token}` } });
+        const data = await res.json();
+        tracks = data.tracks || [];
+      } else {
+        // Загрузка локальных или популярных онлайн-треков
+        const res = await fetch('/api/music', { headers: { 'Authorization': `Bearer ${this.token}` } });
+        const data = await res.json();
+        tracks = data.tracks || [];
+        if (tracks.length === 0) {
+          const resFallback = await fetch('/api/music/search?q=Хакасия', { headers: { 'Authorization': `Bearer ${this.token}` } });
+          const dataFallback = await resFallback.json();
+          tracks = dataFallback.tracks || [];
+        }
       }
-      if (q) url += `q=${encodeURIComponent(q)}&`;
 
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${this.token}` } });
-      const data = await res.json();
-      this.currentPlaylist = data.tracks || [];
-
+      this.currentPlaylist = tracks;
       this.musicTracksList.innerHTML = '';
       if (this.currentPlaylist.length === 0) {
         this.musicTracksList.innerHTML = `
           <div style="text-align:center; padding:40px 20px; color:var(--text-dim);">
             <div style="font-size:2.5rem; margin-bottom:10px;">🎶</div>
             <strong>Треков не найдено</strong>
-            <p style="font-size:0.85rem; margin-top:6px;">Загрузите свой любимый трек или выберите другой жанр!</p>
+            <p style="font-size:0.85rem; margin-top:6px;">Введите любое название песни или исполнителя (Miyagi, Кино, Баста, Цой, Anna Asti) в поиске выше!</p>
           </div>
         `;
         return;
@@ -3573,25 +3899,29 @@ class SunnyKhakassiaApp {
       });
     } catch (e) {
       console.error('Load music error:', e);
+      this.musicTracksList.innerHTML = `<div style="text-align:center; padding:20px; color:var(--accent-red);">Ошибка загрузки музыки: ${e.message}</div>`;
     }
   }
 
   createTrackElement(track, isProfile = false) {
     const item = document.createElement('div');
-    const isPlaying = this.currentPlayingTrack && this.currentPlayingTrack.id === track.id && !this.audioPlayer.paused;
+    const isPlaying = this.currentPlayingTrack && (this.currentPlayingTrack.id === track.id || (track.audio_url && this.currentPlayingTrack.audio_url === track.audio_url)) && !this.audioPlayer.paused;
     item.className = `track-item ${isPlaying ? 'playing' : ''}`;
     item.id = `track-item-${track.id}`;
+
+    const coverHtml = track.cover_url ? `<img src="${this.escapeHTML(track.cover_url)}" class="track-cover-thumb" alt="Обложка">` : '';
 
     item.innerHTML = `
       <button type="button" class="track-play-btn" title="Слушать">
         ${isPlaying ? '⏸️' : '▶️'}
       </button>
+      ${coverHtml}
       <div class="track-info">
         <div class="track-title">${this.escapeHTML(track.title)}</div>
         <div class="track-artist">${this.escapeHTML(track.artist)}</div>
       </div>
-      <span class="track-genre-tag">${this.escapeHTML(track.genre || 'Хакасия')}</span>
-      <span style="font-size:0.75rem; color:var(--text-dim);">${this.escapeHTML(track.duration || '03:15')}</span>
+      <span class="track-genre-tag">${this.escapeHTML(track.genre || 'Музыка')}</span>
+      <span style="font-size:0.75rem; color:var(--text-dim); flex-shrink:0;">${this.escapeHTML(track.duration || '03:15')}</span>
       <div class="track-actions">
         <button type="button" class="track-btn-save ${track.is_saved ? 'saved' : ''}" title="${track.is_saved ? 'Удалить из сохранённых' : 'Сохранить трек'}">
           ${track.is_saved ? '⭐' : '🤍'}
@@ -3604,7 +3934,7 @@ class SunnyKhakassiaApp {
 
     const btnPlay = item.querySelector('.track-play-btn');
     btnPlay.onclick = () => {
-      if (this.currentPlayingTrack && this.currentPlayingTrack.id === track.id) {
+      if (this.currentPlayingTrack && (this.currentPlayingTrack.id === track.id || (track.audio_url && this.currentPlayingTrack.audio_url === track.audio_url))) {
         if (this.audioPlayer.paused) this.audioPlayer.play();
         else this.audioPlayer.pause();
       } else {
@@ -3630,7 +3960,7 @@ class SunnyKhakassiaApp {
   playTrack(track) {
     if (!track) return;
     this.currentPlayingTrack = track;
-    this.currentTrackIndex = this.currentPlaylist.findIndex(t => t.id === track.id);
+    this.currentTrackIndex = this.currentPlaylist.findIndex(t => t.id === track.id || t.audio_url === track.audio_url);
 
     if (this.globalMusicPlayer) this.globalMusicPlayer.classList.remove('hidden');
     if (this.playerTrackTitle) this.playerTrackTitle.textContent = track.title;
@@ -3668,9 +3998,44 @@ class SunnyKhakassiaApp {
   }
 
   async toggleSaveTrack(track, btnEl = null) {
-    const isSaved = Boolean(track.is_saved);
-    const method = isSaved ? 'DELETE' : 'POST';
     try {
+      if (track.is_online) {
+        // Сохранение онлайн-трека в личную медиатеку
+        const res = await fetch('/api/music/save-online', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.token}`
+          },
+          body: JSON.stringify({
+            title: track.title,
+            artist: track.artist,
+            audio_url: track.audio_url,
+            cover_url: track.cover_url,
+            duration: track.duration,
+            genre: track.genre
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка сохранения трека');
+
+        track.is_saved = true;
+        track.id = data.track.id;
+        track.is_online = false;
+
+        if (btnEl) {
+          btnEl.textContent = '⭐';
+          btnEl.classList.add('saved');
+        }
+        if (this.playerBtnSave && this.currentPlayingTrack && (this.currentPlayingTrack.audio_url === track.audio_url)) {
+          this.playerBtnSave.textContent = '⭐';
+        }
+        this.showToast(`Трек "${track.title}" сохранён в вашу музыку! ⭐`, 'success');
+        return;
+      }
+
+      const isSaved = Boolean(track.is_saved);
+      const method = isSaved ? 'DELETE' : 'POST';
       const res = await fetch(`/api/music/${track.id}/save`, {
         method,
         headers: { 'Authorization': `Bearer ${this.token}` }
@@ -3689,8 +4054,9 @@ class SunnyKhakassiaApp {
       if (this.profileStatMusicCount && this.activeProfileUser && this.currentUser && this.activeProfileUser.id === this.currentUser.id) {
         this.profileStatMusicCount.textContent = data.count;
       }
+      this.showToast(track.is_saved ? 'Трек добавлен в сохранённые ⭐' : 'Трек удалён из сохранённых', 'info');
     } catch (e) {
-      alert('Ошибка при сохранении трека');
+      this.showToast('Ошибка при сохранении трека', 'error');
     }
   }
 
@@ -3713,9 +4079,9 @@ class SunnyKhakassiaApp {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       if (this.currentUser) this.currentUser.profile_music = JSON.stringify(trackData);
-      alert(`Трек "${track.title}" установлен в ваш профиль! 🌟`);
+      this.showToast(`Трек "${track.title}" установлен в ваш профиль! 🌟`, 'success');
     } catch (e) {
-      alert('Ошибка установки трека в профиль');
+      this.showToast('Ошибка установки трека в профиль', 'error');
     }
   }
 

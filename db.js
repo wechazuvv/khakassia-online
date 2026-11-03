@@ -279,61 +279,8 @@ function initDatabase() {
     `).run();
   }
 
-  // Ensure initial starter music tracks exist
-  const tracksCount = db.prepare('SELECT COUNT(*) as count FROM tracks').get().count;
-  if (tracksCount === 0) {
-    const seedTracks = [
-      {
-        title: 'Хакасский хомыс и степной ветер',
-        artist: 'Народный ансамбль Хакасии',
-        audio_url: '/audio/khomys-wind.wav',
-        duration: '02:40',
-        genre: 'Хакасия & Этника',
-        cover_url: '/images/khakassia-banner.jpg'
-      },
-      {
-        title: 'Саянские вершины',
-        artist: 'Эхо Великих Гор',
-        audio_url: '/audio/sayany-peaks.wav',
-        duration: '03:15',
-        genre: 'Релакс & Природа',
-        cover_url: '/images/khakassia-banner.jpg'
-      },
-      {
-        title: 'Золотое солнце Енисея',
-        artist: 'Степной Бриз',
-        audio_url: '/audio/yenisei-sun.wav',
-        duration: '02:55',
-        genre: 'Хакасия & Этника',
-        cover_url: '/images/khakassia-banner.jpg'
-      },
-      {
-        title: 'Таёжный костёр под звёздами',
-        artist: 'Сибирские Вечера',
-        audio_url: '/audio/taiga-campfire.wav',
-        duration: '03:30',
-        genre: 'Релакс & Природа',
-        cover_url: '/images/khakassia-banner.jpg'
-      },
-      {
-        title: 'Тайны древних Менгиров',
-        artist: 'Голоса Курганов',
-        audio_url: '/audio/menhirs-steppe.wav',
-        duration: '03:05',
-        genre: 'Хакасия & Этника',
-        cover_url: '/images/khakassia-banner.jpg'
-      }
-    ];
-
-    const insTrack = db.prepare(`
-      INSERT INTO tracks (user_id, title, artist, audio_url, duration, genre, cover_url)
-      VALUES (1, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (const t of seedTracks) {
-      insTrack.run(t.title, t.artist, t.audio_url, t.duration, t.genre, t.cover_url);
-    }
-  }
+  // Ensure initial starter music tracks exist (cleaned as requested: user searches for any song)
+  db.prepare('DELETE FROM user_saved_tracks WHERE track_id NOT IN (SELECT id FROM tracks)').run();
 
   // Ensure official verified admin account: "khakassia"
   let guideUser = db.prepare('SELECT id FROM users WHERE username = ?').get('khakassia');

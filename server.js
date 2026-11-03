@@ -358,25 +358,36 @@ app.get('/api/users', authMiddleware, (req, res) => {
   const myId = req.user.id;
   let users = [];
 
+  // Исключаем: себя, заблокированных, текущих друзей и тех, кому уже отправлена заявка
   if (query) {
     users = db.prepare(`
       SELECT * FROM users
       WHERE is_banned = 0 
         AND id != ?
         AND id NOT IN (SELECT blocked_id FROM user_blocks WHERE user_id = ?)
+        AND id NOT IN (
+          SELECT friend_id FROM friends WHERE user_id = ?
+          UNION
+          SELECT user_id FROM friends WHERE friend_id = ?
+        )
         AND (username LIKE ? OR display_name LIKE ? OR city LIKE ?)
       ORDER BY is_verified DESC, CASE WHEN status = 'online' THEN 1 ELSE 2 END, display_name ASC
       LIMIT 50
-    `).all(myId, myId, `%${query}%`, `%${query}%`, `%${query}%`);
+    `).all(myId, myId, myId, myId, `%${query}%`, `%${query}%`, `%${query}%`);
   } else {
     users = db.prepare(`
       SELECT * FROM users
       WHERE is_banned = 0 
         AND id != ?
         AND id NOT IN (SELECT blocked_id FROM user_blocks WHERE user_id = ?)
+        AND id NOT IN (
+          SELECT friend_id FROM friends WHERE user_id = ?
+          UNION
+          SELECT user_id FROM friends WHERE friend_id = ?
+        )
       ORDER BY is_verified DESC, CASE WHEN status = 'online' THEN 1 ELSE 2 END, id ASC
       LIMIT 100
-    `).all(myId, myId);
+    `).all(myId, myId, myId, myId);
   }
 
   res.json({ users: users.map(sanitizeUser) });
@@ -1257,9 +1268,9 @@ app.post('/api/channels', authMiddleware, (req, res) => {
     const slug = 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 6);
 
     const ins = db.prepare(`
-      INSERT INTO channels (slug, name, description, icon)
-      VALUES (?, ?, ?, ?)
-    `).run(slug, cleanName, cleanDesc, cleanIcon);
+      INSERT INTO channels (slug, name, description, icon, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(slug, cleanName, cleanDesc, cleanIcon, req.user.id);
 
     const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(ins.lastInsertRowid);
     channel.pinned_message = null;
@@ -1273,6 +1284,55 @@ app.post('/api/channels', authMiddleware, (req, res) => {
   } catch (err) {
     console.error('Create channel error:', err);
     res.status(500).json({ error: 'Ошибка создания чата' });
+  }
+});
+
+// Удаление беседки/чата (Создатель чата или Админ)
+app.delete('/api/channels/:id', authMiddleware, (req, res) => {
+  try {
+    const channelId = Number(req.params.id);
+    if (!channelId || channelId === 1) {
+      return res.status(400).json({ error: 'Главный Общий чат нельзя удалить' });
+    }
+    const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(channelId);
+    if (!ch) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    if (ch.created_by && ch.created_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'У вас нет прав на удаление этого чата' });
+    }
+
+    db.prepare('DELETE FROM messages WHERE channel_id = ?').run(channelId);
+    db.prepare('DELETE FROM channels WHERE id = ?').run(channelId);
+
+    broadcastAll({
+      type: 'channel_deleted',
+      channelId
+    });
+
+    res.json({ success: true, channelId });
+  } catch (err) {
+    console.error('Delete channel error:', err);
+    res.status(500).json({ error: 'Ошибка удаления чата' });
+  }
+});
+
+// Очистка диалога в ЛС
+app.delete('/api/conversations/:id', authMiddleware, (req, res) => {
+  try {
+    const otherId = Number(req.params.id);
+    const myId = req.user.id;
+    if (!otherId) return res.status(400).json({ error: 'Не указан пользователь' });
+
+    db.prepare(`
+      DELETE FROM messages 
+      WHERE (sender_id = ? AND receiver_id = ?) 
+         OR (sender_id = ? AND receiver_id = ?)
+    `).run(myId, otherId, otherId, myId);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Ошибка очистки переписки' });
   }
 });
 
@@ -1532,6 +1592,103 @@ app.get('/api/music', authMiddleware, (req, res) => {
   } catch (err) {
     console.error('Fetch music error:', err);
     res.status(500).json({ error: 'Ошибка получения музыки' });
+  }
+});
+
+// Глобальный поиск музыки (Локальные треки + iTunes API)
+app.get('/api/music/search', authMiddleware, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) {
+      return res.json({ tracks: [] });
+    }
+
+    const myId = req.user.id;
+
+    // 1. Поиск по загруженным трекам в базе
+    const localTracks = db.prepare(`
+      SELECT t.*,
+             EXISTS(SELECT 1 FROM user_saved_tracks WHERE user_id = ? AND track_id = t.id) as is_saved,
+             u.display_name as uploader_name
+      FROM tracks t
+      JOIN users u ON t.user_id = u.id
+      WHERE t.title LIKE ? OR t.artist LIKE ? OR t.genre LIKE ?
+      ORDER BY t.id DESC
+      LIMIT 20
+    `).all(myId, `%${q}%`, `%${q}%`, `%${q}%`);
+
+    localTracks.forEach(t => { 
+      t.is_saved = Boolean(t.is_saved); 
+      t.is_online = false; 
+    });
+
+    // 2. Глобальный поиск в открытой библиотеке iTunes Search API
+    let onlineTracks = [];
+    try {
+      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=30`;
+      const apiRes = await fetch(itunesUrl);
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        const savedTracks = db.prepare('SELECT audio_url FROM tracks WHERE id IN (SELECT track_id FROM user_saved_tracks WHERE user_id = ?)').all(myId);
+        const savedUrls = new Set(savedTracks.map(st => st.audio_url));
+
+        onlineTracks = (apiData.results || []).map(item => {
+          const durMs = item.trackTimeMillis || 180000;
+          const totalSec = Math.floor(durMs / 1000);
+          const m = Math.floor(totalSec / 60);
+          const s = totalSec % 60;
+          const durationStr = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+          const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg';
+
+          return {
+            id: `online_${item.trackId}`,
+            itunes_id: item.trackId,
+            title: item.trackName || 'Без названия',
+            artist: item.artistName || 'Неизвестный исполнитель',
+            audio_url: item.previewUrl,
+            cover_url: cover,
+            duration: durationStr,
+            genre: item.primaryGenreName || 'Популярная музыка',
+            is_online: true,
+            is_saved: savedUrls.has(item.previewUrl),
+            uploader_name: 'Онлайн'
+          };
+        }).filter(item => item.audio_url);
+      }
+    } catch (e) {
+      console.warn('iTunes search error:', e.message);
+    }
+
+    res.json({ tracks: [...localTracks, ...onlineTracks] });
+  } catch (err) {
+    console.error('Music search error:', err);
+    res.status(500).json({ error: 'Ошибка поиска музыки' });
+  }
+});
+
+// Сохранение онлайн трека в Мои треки
+app.post('/api/music/save-online', authMiddleware, (req, res) => {
+  try {
+    const { title, artist, audio_url, cover_url, duration, genre } = req.body;
+    if (!audio_url || !title) return res.status(400).json({ error: 'Некорректный трек' });
+
+    let existing = db.prepare('SELECT id FROM tracks WHERE audio_url = ?').get(audio_url);
+    let trackId;
+    if (existing) {
+      trackId = existing.id;
+    } else {
+      const ins = db.prepare(`
+        INSERT INTO tracks (user_id, title, artist, audio_url, cover_url, duration, genre)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.id, title, artist || 'Исполнитель', audio_url, cover_url || '', duration || '03:00', genre || 'Популярная музыка');
+      trackId = ins.lastInsertRowid;
+    }
+
+    db.prepare('INSERT OR IGNORE INTO user_saved_tracks (user_id, track_id) VALUES (?, ?)').run(req.user.id, trackId);
+    const count = db.prepare('SELECT COUNT(*) as count FROM user_saved_tracks WHERE user_id = ?').get(req.user.id).count;
+    res.json({ success: true, saved: true, trackId, count });
+  } catch (e) {
+    res.status(500).json({ error: 'Ошибка сохранения трека' });
   }
 });
 
