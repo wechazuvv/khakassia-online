@@ -1,14 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
-let DatabaseSync;
-try {
-  DatabaseSync = require('node:sqlite').DatabaseSync;
-} catch (e) {
-  DatabaseSync = require('better-sqlite3');
-}
-if (!DatabaseSync) {
-  DatabaseSync = require('better-sqlite3');
-}
+const { DatabaseSync } = require('node:sqlite');
 const crypto = require('node:crypto');
 
 const dbPath = path.join(__dirname, 'chat.db');
