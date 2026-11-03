@@ -1736,7 +1736,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`===============================================================\n`);
 });
 
-if (PORT !== 80) {
+if (PORT !== 80 && !process.env.RENDER) {
   try {
     const server80 = http.createServer(app);
     server80.on('upgrade', (req, socket, head) => {
