@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Хакасия Онлайн — Социальная сеть и сообщество</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☀️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+
+    <!-- TOP NAVIGATION NAVBAR -->
+    <header class="navbar">
+      <div class="nav-brand" id="navBrandBtn">
+        <div class="brand-sun-icon">☀️</div>
+        <div class="brand-text-wrap">
+          <span class="brand-title">Хакасия <span class="accent-gold">Онлайн</span></span>
+          <span class="brand-domain">khakassia-online.ru</span>
+        </div>
+      </div>
+
+      <!-- MAIN NAVIGATION TABS -->
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="feed" id="tabBtnFeed">
+          <span class="tab-icon">📰</span>
+          <span class="tab-title">Лента</span>
+        </button>
+        <button class="nav-tab" data-tab="chat" id="tabBtnChat">
+          <span class="tab-icon">💬</span>
+          <span class="tab-title">Общий чат</span>
+          <span class="tab-badge hidden" id="chatUnreadBadge">0</span>
+        </button>
+        <button class="nav-tab" data-tab="music" id="tabBtnMusic">
+          <span class="tab-icon">🎵</span>
+          <span class="tab-title">Музыка</span>
+        </button>
+        <button class="nav-tab" data-tab="friends" id="tabBtnFriends">
+          <span class="tab-icon">👥</span>
+          <span class="tab-title">Люди & Друзья</span>
+          <span class="tab-badge warning hidden" id="friendsRequestsBadge">0</span>
+        </button>
+        <button class="nav-tab" data-tab="profile" id="tabBtnProfile">
+          <span class="tab-icon">👤</span>
+          <span class="tab-title">Мой профиль</span>
+        </button>
+      </nav>
+
+      <!-- NAVBAR RIGHT CONTROLS -->
+      <div class="nav-right">
+
+        <!-- Notifications Bell -->
+        <div class="notifications-wrapper">
+          <button class="btn-icon btn-notifications" id="btnNotifications" title="Уведомления">
+            🔔
+            <span class="notifications-badge hidden" id="notificationsBadge">0</span>
+          </button>
+          <div class="notifications-dropdown hidden" id="notificationsDropdown">
+            <div class="notifications-header">
+              <span>🔔 Уведомления</span>
+              <button type="button" class="btn-text-sm" id="btnMarkAllRead">Все прочитаны</button>
+            </div>
+            <div class="notifications-list" id="notificationsList">
+              <div class="notifications-empty">У вас пока нет новых уведомлений</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin Moderation Button (visible to admins) -->
+        <button class="btn-moderation hidden" id="btnOpenModeration" title="Панель безопасности и жалоб">
+          🛡️ Модерация
+        </button>
+
+        <button class="btn-icon theme-toggle" id="themeToggleBtn" title="Переключить тему">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+
+        <div class="user-pill" id="userPillBtn" title="Настройки профиля">
+          <div class="user-pill-avatar" id="navUserAvatar">👤</div>
+          <div class="user-pill-info">
+            <span class="user-pill-name" id="navUserName">Гость</span>
+            <span class="user-pill-handle" id="navUserHandle">@войти</span>
+          </div>
+        </div>
+
+        <button class="btn-icon btn-logout" id="btnLogout" title="Выйти из аккаунта">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ANTI-SCAM SAFETY ALERT TICKER -->
+    <div class="security-banner-strip" id="securityBannerStrip">
+      <div class="security-banner-content">
+        <span class="shield-badge">🛡️ БЕЗОПАСНОСТЬ</span>
+        <span>Остерегайтесь мошенников! Администрация «Солнечной Хакасии» никогда не просит номера карт, коды из СМС или переводы денег. Сообщайте о подозрительных людях кнопкой «Пожаловаться».</span>
+      </div>
+      <button type="button" class="btn-close-banner" id="btnCloseSecurityBanner" title="Скрыть предупреждение">✕</button>
+    </div>
+
+    <!-- MAIN CONTENT VIEW AREA -->
+    <main class="main-content">
+
+      <!-- ========================================================
+           TAB 1: FEED (ЛЕНТА ПУБЛИКАЦИЙ И ВИДЕО)
+           ======================================================== -->
+      <section class="tab-view active" id="viewFeed">
+        <div class="feed-layout">
+
+          <!-- Left / Center Feed Column -->
+          <div class="feed-main-col">
+
+            <!-- Hero Khakassia Banner -->
+            <div class="khakassia-hero-card">
+              <div class="hero-image-wrap">
+                <img src="/images/khakassia-banner.jpg" alt="Хакасия — край степей и гор" class="hero-bg-img">
+                <div class="hero-overlay"></div>
+              </div>
+              <div class="hero-content">
+                <div class="hero-badge">🌄 Республика Хакасия</div>
+                <p class="hero-subtitle">Земля • Люди • История • Будущее. Делитесь своими фотографиями, видео и историями!</p>
+              </div>
+            </div>
+
+            <!-- Create Post Card -->
+            <div class="create-post-card">
+              <div class="create-post-header">
+                <div class="post-avatar" id="createPostAvatar">👤</div>
+                <textarea 
+                  id="postContentInput" 
+                  rows="3" 
+                  placeholder="О чём хотите рассказать жителям Хакасии? Напишите пост, добавьте фото или видео..."
+                ></textarea>
+              </div>
+
+              <!-- Media Preview container -->
+              <div class="media-upload-preview hidden" id="mediaUploadPreview">
+                <div class="preview-inner" id="previewInner"></div>
+                <button type="button" class="btn-cancel-media" id="btnCancelMedia" title="Удалить файл">✕</button>
+              </div>
+
+              <!-- Poll Creator Box -->
+              <div class="poll-creator-box hidden" id="pollCreatorBox">
+                <div class="poll-creator-header">
+                  <span>📊 Интерактивный опрос</span>
+                  <button type="button" class="btn-icon-xs" id="btnCancelPoll">✕</button>
+                </div>
+                <input type="text" id="pollQuestionInput" placeholder="Задайте вопрос жителям Хакасии..." class="poll-input-question">
+                <div class="poll-options-inputs" id="pollOptionsInputs">
+                  <input type="text" class="poll-opt-input" placeholder="Вариант ответа 1">
+                  <input type="text" class="poll-opt-input" placeholder="Вариант ответа 2">
+                </div>
+                <button type="button" class="btn-text-sm" id="btnAddPollOption">+ Добавить вариант</button>
+              </div>
+
+              <div class="create-post-footer">
+                <div class="create-post-actions">
+                  <input type="file" id="postPhotoInput" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden">
+                  <input type="file" id="postVideoInput" accept="video/mp4,video/webm,video/quicktime" class="hidden">
+
+                  <button type="button" class="btn-attach-media" id="btnAttachPhoto">
+                    <span class="action-icon">📸</span> Фото
+                  </button>
+                  <button type="button" class="btn-attach-media" id="btnAttachVideo">
+                    <span class="action-icon">🎥</span> Видео
+                  </button>
+                  <button type="button" class="btn-attach-media" id="btnTogglePoll">
+                    <span class="action-icon">📊</span> Опрос
+                  </button>
+
+                  <select id="postLocationSelect" class="post-location-select" title="Отметить локацию в Хакасии">
+                    <option value="">📍 Без локации</option>
+                    <option value="г. Абакан">📍 г. Абакан</option>
+                    <option value="г. Черногорск">📍 г. Черногорск</option>
+                    <option value="г. Саяногорск">📍 г. Саяногорск</option>
+                    <option value="Озеро Белё">📍 Озеро Белё</option>
+                    <option value="Озеро Шира">📍 Озеро Шира</option>
+                    <option value="Саяно-Шушенская ГЭС">📍 Саяно-Шушенская ГЭС</option>
+                    <option value="Горная гряда Сундуки">📍 Горная гряда Сундуки</option>
+                    <option value="Ивановские озёра">📍 Ивановские озёра</option>
+                    <option value="Салбыкский курган">📍 Салбыкский курган</option>
+                    <option value="Тропа предков">📍 Тропа предков</option>
+                    <option value="Музей Казановка">📍 Музей Казановка</option>
+                    <option value="г. Сорск">📍 г. Сорск</option>
+                    <option value="г. Абаза">📍 г. Абаза</option>
+                    <option value="с. Аскиз">📍 с. Аскиз</option>
+                    <option value="пгт. Усть-Абакан">📍 пгт. Усть-Абакан</option>
+                    <option value="с. Боград">📍 с. Боград</option>
+                    <option value="с. Таштып">📍 с. Таштып</option>
+                    <option value="с. Бея">📍 с. Бея</option>
+                    <option value="с. Шира">📍 с. Шира</option>
+                  </select>
+                </div>
+                <button type="button" class="btn-primary btn-publish" id="btnPublishPost">
+                  Опубликовать 🚀
+                </button>
+              </div>
+            </div>
+
+            <!-- Feed Search and Popular Tags Bar -->
+            <div class="feed-search-section">
+              <div class="feed-search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="feedSearchInput" placeholder="Поиск по публикациям, людям, хэштегам и локациям..." class="feed-search-input">
+                <button type="button" class="btn-clear-search hidden" id="btnClearSearch">✕</button>
+              </div>
+              <div class="popular-tags-strip" id="popularTagsStrip">
+                <span class="tags-label">Теги:</span>
+                <span class="tag-pill" data-tag="хакасия">#хакасия</span>
+                <span class="tag-pill" data-tag="абакан">#абакан</span>
+                <span class="tag-pill" data-tag="природа">#природа</span>
+                <span class="tag-pill" data-tag="саяногорск">#саяногорск</span>
+                <span class="tag-pill" data-tag="озера">#озера</span>
+                <span class="tag-pill" data-tag="туризм">#туризм</span>
+                <span class="tag-pill" data-tag="новости">#новости</span>
+              </div>
+            </div>
+
+            <!-- Feed Filter / Sort Bar -->
+            <div class="feed-bar">
+              <span class="feed-bar-title" id="feedBarTitle">Все публикации</span>
+              <span class="feed-posts-count" id="feedCountText">Загрузка...</span>
+            </div>
+
+            <!-- Posts Stream Container -->
+            <div class="posts-stream" id="postsStream">
+              <div class="posts-loader" id="postsLoader">
+                <div class="spinner"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Feed Sidebar -->
+          <aside class="feed-side-col">
+            <!-- Anti-Fraud Tips Card -->
+            <div class="side-card anti-fraud-card">
+              <div class="anti-fraud-header">
+                <span class="anti-fraud-icon">🛡️</span>
+                <h4>Защита от мошенников</h4>
+              </div>
+              <ul class="anti-fraud-list">
+                <li>❌ Не переводите предоплату за сомнительные товары и услуги.</li>
+                <li>❌ Не верьте обещаниям «легких денег» и выплатам в интернете.</li>
+                <li>❌ Не переходите по ссылкам с подозрительных аккаунтов.</li>
+                <li>🚩 Заметили обман? Нажмите «Пожаловаться» в профиле или публикации!</li>
+              </ul>
+            </div>
+
+            <div class="side-card solar-widget">
+              <div class="solar-header">
+                <span class="solar-icon">☀️</span>
+                <div>
+                  <h4>Хакасия Онлайн</h4>
+                  <p>В Хакасии более 300 солнечных дней в году!</p>
+                </div>
+              </div>
+              <div class="solar-stats">
+                <div class="stat-box">
+                  <span class="stat-val" id="widgetTotalUsers">0</span>
+                  <span class="stat-lbl">Жителей</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-val" id="widgetTotalPosts">0</span>
+                  <span class="stat-lbl">Постов</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-card cities-widget">
+              <h4>Города и районы</h4>
+              <div class="cities-tags" id="sidebarCitiesTags">
+                <span class="city-tag" data-city="Абакан">Абакан</span>
+                <span class="city-tag" data-city="Саяногорск">Саяногорск</span>
+                <span class="city-tag" data-city="Черногорск">Черногорск</span>
+                <span class="city-tag" data-city="Сорск">Сорск</span>
+                <span class="city-tag" data-city="Абаза">Абаза</span>
+                <span class="city-tag" data-city="Усть-Абакан">Усть-Абакан</span>
+                <span class="city-tag" data-city="Шира">Шира</span>
+                <span class="city-tag" data-city="Аскиз">Аскиз</span>
+                <span class="city-tag" data-city="Таштып">Таштып</span>
+                <span class="city-tag" data-city="Бея">Бея</span>
+              </div>
+            </div>
+
+            <div class="side-card chat-invite-card" id="sideChatInviteBtn">
+              <div class="invite-icon">💬</div>
+              <div class="invite-info">
+                <h4>Общий чат Хакасии</h4>
+                <p>Живое общение без задержек в реальном времени</p>
+              </div>
+              <button class="btn-secondary full-width">Войти в чат</button>
+            </div>
+          </aside>
+
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB 2: CHAT (ОБЩИЙ ЧАТ ХАКАСИИ + ЛС)
+           ======================================================== -->
+      <section class="tab-view hidden" id="viewChat">
+        <div class="chat-layout">
+          <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+              <h3>Беседки Хакасии</h3>
+              <button type="button" class="btn-create-channel" id="btnOpenCreateChannel" title="Создать свой чат / беседку">➕ Чат</button>
+            </div>
+            
+            <div class="chat-channels-list" id="chatChannelsList">
+              <div class="chat-channel-item active" id="chatGeneralChannelBtn">
+                <div class="channel-icon">☀️</div>
+                <div class="channel-info">
+                  <div class="channel-name">Общий чат</div>
+                  <div class="channel-sub">Беседка республики</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dm-section-title">
+              <span>Личные сообщения (ЛС)</span>
+            </div>
+            <div class="chat-dm-list" id="chatDmList"></div>
+          </div>
+
+          <div class="chat-main-area">
+            <div class="chat-main-header">
+              <div class="chat-header-info">
+                <span class="chat-header-icon" id="chatActiveIcon">☀️</span>
+                <div>
+                  <h3 id="chatActiveTitle">Общий чат Хакасии</h3>
+                  <p id="chatActiveSubtitle">Главная беседка для общения всех жителей и гостей республики</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pinned Chat Message Bar (Админ / Создатель сайта) -->
+            <div class="chat-pinned-bar hidden" id="chatPinnedBar">
+              <span class="pinned-icon">📌</span>
+              <div class="pinned-content" id="chatPinnedContent" title="Нажмите, чтобы перейти к сообщению">
+                <strong id="chatPinnedAuthor">Администратор:</strong>
+                <span id="chatPinnedText">Закреплённое сообщение</span>
+              </div>
+              <button type="button" class="btn-icon-xs hidden" id="btnUnpinChatMsg" title="Открепить сообщение">✕</button>
+            </div>
+
+            <div class="chat-messages-container" id="chatMessagesContainer">
+              <div class="messages-list" id="chatMessagesList"></div>
+            </div>
+
+            <div class="chat-input-area">
+              <!-- Stickers Drawer / Picker -->
+              <div class="stickers-drawer hidden" id="stickersDrawer">
+                <div class="stickers-header">
+                  <span>☀️ Стикеры и эмоции Хакасии</span>
+                  <button type="button" class="btn-icon-xs" id="btnCloseStickers">✕</button>
+                </div>
+                <div class="stickers-grid" id="stickersGrid"></div>
+              </div>
+
+              <div class="reply-preview-bar hidden" id="chatReplyBar">
+                <span id="chatReplyText">Ответ на сообщение...</span>
+                <button type="button" class="btn-icon-xs" id="btnCancelChatReply">✕</button>
+              </div>
+
+              <div class="attachment-preview-bar hidden" id="chatAttachmentBar">
+                <span id="chatAttachmentText">Файл...</span>
+                <button type="button" class="btn-icon-xs" id="btnCancelChatAttachment">✕</button>
+              </div>
+
+              <!-- Voice Recording Status Bar -->
+              <div class="voice-recording-bar hidden" id="voiceRecordingBar">
+                <div class="recording-pulse"></div>
+                <span class="recording-timer" id="recordingTimer">00:00</span>
+                <span class="recording-label">Идёт запись голоса...</span>
+                <div class="recording-actions">
+                  <button type="button" class="btn-icon-xs btn-voice-cancel" id="btnCancelVoice" title="Отменить запись">✕ Отмена</button>
+                  <button type="button" class="btn-icon-xs btn-voice-send" id="btnSendVoice" title="Отправить голосовое">✓ Отправить</button>
+                </div>
+              </div>
+
+              <form class="chat-input-form" id="chatForm">
+                <input type="file" id="chatFileInput" accept="image/*,video/*,audio/*" class="hidden">
+                <button type="button" class="btn-input-action" id="btnChatAttach" title="Прикрепить файл">📎</button>
+                <button type="button" class="btn-input-action" id="btnChatStickers" title="Стикеры Хакасии ☀️">🎭</button>
+                <button type="button" class="btn-input-action btn-voice-record" id="btnChatVoice" title="Записать голосовое сообщение">🎙️</button>
+                <textarea 
+                  id="chatMessageInput" 
+                  rows="1" 
+                  placeholder="Написать в чат... (Enter для отправки)"
+                ></textarea>
+                <button type="submit" class="btn-send" id="btnChatSend">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </form>
+              <div class="chat-typing-line" id="chatTypingLine"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB: MUSIC (МУЗЫКА ХАКАСИИ)
+           ======================================================== -->
+      <section class="tab-view hidden" id="viewMusic">
+        <div class="music-layout">
+          <div class="music-header-card">
+            <div class="music-header-top">
+              <div class="music-title-wrap">
+                <span class="music-sun-icon">🎵</span>
+                <div>
+                  <h2>Музыка <span class="accent-gold">Хакасии</span></h2>
+                  <p>Слушайте атмосферные треки степей и гор, народный хомыс и любимые песни. Добавляйте треки в свой профиль!</p>
+                </div>
+              </div>
+              <button type="button" class="btn-primary" id="btnOpenUploadMusic">
+                ➕ Загрузить свой трек
+              </button>
+            </div>
+
+            <div class="music-search-bar">
+              <span class="music-search-icon">🔍</span>
+              <input type="text" id="musicSearchInput" placeholder="Поиск по названию трека, исполнителю или жанру...">
+              <button type="button" class="btn-search-clear hidden" id="btnClearMusicSearch">✕</button>
+            </div>
+
+            <div class="music-genre-chips" id="musicGenreChips">
+              <button type="button" class="genre-chip active" data-genre="all">Вся музыка</button>
+              <button type="button" class="genre-chip" data-genre="Хакасия & Этника">Хакасия & Этника</button>
+              <button type="button" class="genre-chip" data-genre="Релакс & Природа">Релакс & Природа</button>
+              <button type="button" class="genre-chip" data-genre="Хакасия & Сибирь">Хакасия & Сибирь</button>
+              <button type="button" class="genre-chip" data-genre="saved">💾 Мои сохранённые</button>
+            </div>
+          </div>
+
+          <div class="music-content-card">
+            <div class="tracks-list" id="musicTracksList">
+              <!-- Tracks rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB 3: FRIENDS & USERS (ДРУЗЬЯ И ЗЕМЛЯКИ)
+           ======================================================== -->
+      <section class="tab-view hidden" id="viewFriends">
+        <div class="friends-layout">
+          <div class="friends-header-bar">
+            <h2>Земляки и Друзья</h2>
+            <div class="friends-search-box">
+              <input type="text" id="friendsSearchInput" placeholder="Поиск по имени, @юзу или городу...">
+            </div>
+          </div>
+
+          <div class="friends-section hidden" id="incomingRequestsSection">
+            <h3 class="friends-section-title">🔔 Заявки в друзья (<span id="incomingCount">0</span>)</h3>
+            <div class="users-grid" id="incomingRequestsGrid"></div>
+          </div>
+
+          <div class="friends-section">
+            <h3 class="friends-section-title">🤝 Мои друзья (<span id="myFriendsCount">0</span>)</h3>
+            <div class="users-grid" id="myFriendsGrid"></div>
+          </div>
+
+          <div class="friends-section">
+            <h3 class="friends-section-title">🌍 Все жители Хакасии</h3>
+            <div class="users-grid" id="allUsersGrid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================
+           TAB 4: PROFILE VIEW (ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ)
+           ======================================================== -->
+      <section class="tab-view hidden" id="viewProfile">
+        <div class="profile-layout">
+          <div class="profile-header-card">
+            <div class="profile-cover" id="profileCoverContainer">
+              <img src="/images/khakassia-banner.jpg" alt="Хакасия" class="profile-cover-img" id="profileCoverImg">
+              <div class="cover-buttons-group">
+                <button type="button" class="btn-change-cover hidden" id="btnChangeCover" title="Сменить обложку профиля (фото или GIF)">
+                  🖼️ Сменить обложку
+                </button>
+                <button type="button" class="btn-adjust-cover hidden" id="btnAdjustCover" title="Настроить положение обложки">
+                  📐 Положение
+                </button>
+              </div>
+              <input type="file" id="coverFileInput" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden">
+            </div>
+            <div class="profile-bar">
+              <div class="profile-avatar-container">
+                <div class="profile-big-avatar" id="profileBigAvatar">👤</div>
+                <button class="btn-change-avatar hidden" id="btnUploadOwnAvatar" title="Загрузить своё фото на аватарку">
+                  📷
+                </button>
+              </div>
+
+              <div class="profile-text-meta">
+                <div class="profile-names">
+                  <h2 id="profileDisplayName">Имя Фамилия</h2>
+                  <span class="creator-badge hidden" id="profileCreatorBadge" title="Создатель и владелец портала Хакасия Онлайн">👑 Создатель сайта</span>
+                  <span class="verified-badge hidden" id="profileVerifiedBadge" title="Проверенный официальный аккаунт">✔️</span>
+                  <span class="profile-handle" id="profileHandle">@username</span>
+                  <span class="banned-badge hidden" id="profileBannedBadge">🚫 ЗАБЛОКИРОВАН</span>
+                </div>
+                <div class="profile-city-line">
+                  <span class="city-icon">📍</span>
+                  <span id="profileCity">г. Абакан, Хакасия</span>
+                  <span class="status-dot-inline" id="profileStatusDot"></span>
+                  <span id="profileStatusText">В сети</span>
+                </div>
+                <p class="profile-bio-text" id="profileBio">Информация о себе...</p>
+                <div class="profile-extra-details" id="profileExtraDetails">
+                  <span class="profile-detail-pill hidden" id="profileDetailPlace">🏔️ <span id="profilePlaceVal"></span></span>
+                  <a href="#" target="_blank" rel="noopener noreferrer" class="profile-detail-pill profile-tg-link hidden" id="profileDetailTg">✈️ <span id="profileTgVal"></span></a>
+                  <span class="profile-detail-pill hidden" id="profileDetailBirth">🎂 <span id="profileBirthVal"></span></span>
+                </div>
+
+                <!-- Profile Anthem Widget -->
+                <div class="profile-anthem-card hidden" id="profileAnthemCard">
+                  <div class="anthem-disc">🎵</div>
+                  <div class="anthem-meta">
+                    <span class="anthem-tag">Любимая песня профиля</span>
+                    <strong class="anthem-title" id="profileAnthemTitle">Трек</strong>
+                    <span class="anthem-artist" id="profileAnthemArtist">Исполнитель</span>
+                  </div>
+                  <button type="button" class="btn-anthem-play" id="btnProfileAnthemPlay" title="Слушать">▶️</button>
+                  <button type="button" class="btn-icon-xs hidden" id="btnRemoveProfileAnthem" title="Убрать из профиля">✕</button>
+                </div>
+              </div>
+
+              <div class="profile-actions" id="profileActionsContainer"></div>
+            </div>
+
+            <div class="profile-stats-bar">
+              <div class="profile-stat-item">
+                <strong id="profileStatPosts">0</strong>
+                <span>Публикаций</span>
+              </div>
+              <div class="profile-stat-item">
+                <strong id="profileStatFriends">0</strong>
+                <span>Друзей</span>
+              </div>
+              <div class="profile-stat-item" id="profileStatMusicBox" style="cursor: pointer;" title="Посмотреть сохранённую музыку">
+                <strong id="profileStatMusicCount">0</strong>
+                <span>Треков</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-tabs">
+            <button class="profile-subtab active" data-subtab="posts" id="subtabPosts">Публикации пользователя</button>
+            <button class="profile-subtab" data-subtab="friends" id="subtabFriends">Друзья</button>
+            <button class="profile-subtab" data-subtab="music" id="subtabMusic">🎵 Музыка</button>
+          </div>
+
+          <div class="profile-subcontent" id="profilePostsSubcontent">
+            <div class="posts-stream" id="profilePostsStream"></div>
+          </div>
+
+          <div class="profile-subcontent hidden" id="profileFriendsSubcontent">
+            <div class="users-grid" id="profileFriendsGrid"></div>
+          </div>
+
+          <div class="profile-subcontent hidden" id="profileMusicSubcontent">
+            <div class="tracks-list" id="profileTracksList"></div>
+          </div>
+
+          <div class="private-profile-lock-box hidden" id="privateProfileLockBox">
+            <div class="lock-icon">🔒</div>
+            <h3>Это закрытый профиль</h3>
+            <p>Добавьте жителя в друзья, чтобы просматривать его публикации и сохранённую музыку.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ========================================================
+       MODALS & DIALOGS
+       ======================================================== -->
+
+  <!-- AUTH MODAL -->
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal auth-modal">
+      <div class="auth-brand-logo">
+        <span class="sun-logo-large">☀️</span>
+        <h2>Хакасия <span class="accent-gold">Онлайн</span></h2>
+        <span class="domain-tag">khakassia-online.ru</span>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login" id="authTabLogin">Вход</button>
+        <button class="auth-tab" data-tab="register" id="authTabRegister">Регистрация</button>
+      </div>
+
+      <form class="auth-form" id="loginForm">
+        <div class="form-group">
+          <label>Логин или Юзернейм (@юз)</label>
+          <input type="text" id="loginUsername" required placeholder="например: alex_abakan" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" id="loginPassword" required placeholder="Ваш пароль" autocomplete="current-password">
+        </div>
+        <div class="form-error hidden" id="loginError"></div>
+        <button type="submit" class="btn-primary full-width" id="btnLoginSubmit">Войти на портал ☀️</button>
+        <div class="auth-hint">
+          Нет аккаунта? <a href="#" id="linkSwitchToRegister">Зарегистрироваться</a>
+        </div>
+      </form>
+
+      <form class="auth-form hidden" id="registerForm">
+        <div class="form-group">
+          <label>Юзернейм (@юз) — латиница и цифры</label>
+          <input type="text" id="regUsername" required placeholder="например: sayan_alex" pattern="[a-zA-Z0-9_]{3,25}" autocomplete="username">
+          <small class="field-hint">Ваш уникальный юз в системе: @юз</small>
+        </div>
+        <div class="form-group">
+          <label>Отображаемое имя (как вас зовут)</label>
+          <input type="text" id="regDisplayName" required placeholder="Александр" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label>Ваш город или район в Хакасии</label>
+          <select id="regCity">
+            <option value="Абакан">г. Абакан</option>
+            <option value="Саяногорск">г. Саяногорск</option>
+            <option value="Черногорск">г. Черногорск</option>
+            <option value="Сорск">г. Сорск</option>
+            <option value="Абаза">г. Абаза</option>
+            <option value="Усть-Абаканский район">Усть-Абаканский район</option>
+            <option value="Ширинский район">Ширинский район</option>
+            <option value="Аскизский район">Аскизский район</option>
+            <option value="Таштыпский район">Таштыпский район</option>
+            <option value="Бейский район">Бейский район</option>
+            <option value="Боградский район">Боградский район</option>
+            <option value="Орджоникидзевский район">Орджоникидзевский район</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Пароль (от 4 символов)</label>
+          <input type="password" id="regPassword" required placeholder="Придумайте пароль" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>Выберите стартовую аватарку</label>
+          <div class="avatar-presets" id="regAvatarPresets">
+            <div class="avatar-option selected" data-avatar="preset:cat">🐱</div>
+            <div class="avatar-option" data-avatar="preset:fox">🦊</div>
+            <div class="avatar-option" data-avatar="preset:wolf">🐺</div>
+            <div class="avatar-option" data-avatar="preset:sparkles">✨</div>
+            <div class="avatar-option" data-avatar="preset:rocket">🚀</div>
+            <div class="avatar-option" data-avatar="preset:ninja">🥷</div>
+          </div>
+          <small class="field-hint">После входа можно загрузить своё настоящее фото!</small>
+        </div>
+        <div class="form-error hidden" id="regError"></div>
+        <button type="submit" class="btn-primary full-width" id="btnRegisterSubmit">Создать аккаунт ☀️</button>
+        <div class="auth-hint">
+          Уже есть аккаунт? <a href="#" id="linkSwitchToLogin">Войти</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- REPORT FRAUD / SCAM MODAL (Пожаловаться на мошенника) -->
+  <div class="modal-backdrop hidden" id="reportModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>🚩 Пожаловаться модераторам</h3>
+        <button class="btn-icon-sm" id="btnCloseReportModal">✕</button>
+      </div>
+      <form id="reportForm">
+        <input type="hidden" id="reportTargetType">
+        <input type="hidden" id="reportTargetId">
+
+        <div class="form-group">
+          <label>Причина жалобы</label>
+          <select id="reportReason" required>
+            <option value="Финансовое мошенничество / вымогательство">🚨 Финансовое мошенничество / сбор денег</option>
+            <option value="Подозрительные фишинговые ссылки">🔗 Опасные или фишинговые ссылки</option>
+            <option value="Спам или реклама сомнительных услуг">📢 Спам, реклама казино или ботов</option>
+            <option value="Выдача себя за другое лицо / фейк">🎭 Фейковый профиль / обман личности</option>
+            <option value="Оскорбления или угрозы">⚠️ Оскорбления или угрозы</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Подробности (необязательно)</label>
+          <textarea id="reportDetails" rows="3" placeholder="Опишите, в чём заключается обман или нарушение..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelReport">Отмена</button>
+          <button type="submit" class="btn-primary" style="background:var(--accent-red);">Отправить жалобу 🚩</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADMIN MODERATION PANEL MODAL (Панель модератора) -->
+  <div class="modal-backdrop hidden" id="moderationModal">
+    <div class="modal moderation-modal" style="max-width: 760px;">
+      <div class="modal-header">
+        <h3>🛡️ Административная панель Хакасии</h3>
+        <button class="btn-icon-sm" id="btnCloseModerationModal">✕</button>
+      </div>
+      <div class="admin-modal-nav">
+        <button class="admin-nav-tab active" data-admintab="reports" id="adminTabReports">🚨 Жалобы (<span id="adminPendingCount">0</span>)</button>
+        <button class="admin-nav-tab" data-admintab="users" id="adminTabUsers">👥 Жители Хакасии</button>
+        <button class="admin-nav-tab" data-admintab="stats" id="adminTabStats">📊 Статистика портала</button>
+      </div>
+      <div class="moderation-content" id="moderationContent">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY GLOBAL MUSIC PLAYER -->
+  <div class="global-music-player hidden" id="globalMusicPlayer">
+    <div class="player-track-info">
+      <div class="player-cover-disc" id="playerCoverDisc">🎵</div>
+      <div class="player-meta">
+        <div class="player-title" id="playerTrackTitle">Трек не выбран</div>
+        <div class="player-artist" id="playerTrackArtist">Исполнитель</div>
+      </div>
+      <button type="button" class="player-btn-like" id="playerBtnSave" title="Сохранить в мою музыку">🤍</button>
+    </div>
+
+    <div class="player-center-controls">
+      <div class="player-buttons">
+        <button type="button" class="player-ctrl-btn" id="playerBtnPrev" title="Предыдущий трек">⏮️</button>
+        <button type="button" class="player-play-btn" id="playerBtnPlay" title="Воспроизвести / Пауза">▶️</button>
+        <button type="button" class="player-ctrl-btn" id="playerBtnNext" title="Следующий трек">⏭️</button>
+      </div>
+      <div class="player-progress-line">
+        <span class="player-time" id="playerCurrentTime">00:00</span>
+        <div class="progress-bar-wrap" id="playerProgressWrap">
+          <div class="progress-bar-fill" id="playerProgressFill"></div>
+        </div>
+        <span class="player-time" id="playerTotalTime">00:00</span>
+      </div>
+    </div>
+
+    <div class="player-extra-controls">
+      <button type="button" class="player-set-anthem-btn" id="playerBtnSetAnthem" title="Установить как аудиозапись в профиль">
+        👑 В профиль
+      </button>
+      <div class="volume-slider-wrap">
+        <span id="playerVolumeIcon">🔊</span>
+        <input type="range" id="playerVolumeSlider" min="0" max="1" step="0.05" value="0.8" title="Громкость">
+      </div>
+      <button type="button" class="player-ctrl-btn" id="playerBtnClose" title="Скрыть плеер">✕</button>
+    </div>
+  </div>
+
+  <!-- EXTERNAL LINK SECURITY MODAL (Защита от перехода на фишинг) -->
+  <div class="modal-backdrop hidden" id="externalLinkModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 style="color:var(--accent-red);">⚠️ Предупреждение о безопасности</h3>
+        <button class="btn-icon-sm" id="btnCloseLinkModal">✕</button>
+      </div>
+      <p style="font-size:0.9rem; line-height:1.5; margin-bottom:14px;">
+        Вы собираетесь перейти на сторонний внешний ресурс:
+      </p>
+      <div class="external-url-display" id="externalUrlDisplay">https://...</div>
+      <p style="font-size:0.82rem; color:var(--text-dim); margin-bottom:18px;">
+        <strong>Внимание:</strong> Администрация «Солнечной Хакасии» не несет ответственности за внешние сайты. <strong>Никогда не вводите свои пароли, номера банковских карт и коды из СМС!</strong>
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="btnCancelExternalLink">Вернуться в безопасность</button>
+        <a href="#" target="_blank" rel="noopener noreferrer" class="btn-primary" id="btnProceedExternalLink" style="text-decoration:none;">Перейти всё равно</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- AVATAR UPLOAD MODAL -->
+  <div class="modal-backdrop hidden" id="avatarUploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Загрузка своей аватарки</h3>
+        <button class="btn-icon-sm" id="btnCloseAvatarModal">✕</button>
+      </div>
+      <form id="avatarUploadForm">
+        <div class="avatar-crop-preview" id="avatarCropPreview">
+          <div class="crop-circle" id="cropCirclePreview">👤</div>
+        </div>
+        <div class="form-group">
+          <label>Выберите фотографию с компьютера или телефона</label>
+          <input type="file" id="customAvatarFileInput" accept="image/jpeg,image/png,image/webp" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelAvatar">Отмена</button>
+          <button type="submit" class="btn-primary">Сохранить фото 📷</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE EDIT MODAL -->
+  <div class="modal-backdrop hidden" id="editProfileModal">
+    <div class="modal edit-profile-modal" style="max-width:540px;">
+      <div class="modal-header">
+        <h3>Редактировать профиль</h3>
+        <button class="btn-icon-sm" id="btnCloseEditModal">✕</button>
+      </div>
+      <form id="editProfileForm">
+        <div class="form-group">
+          <label>Отображаемое имя</label>
+          <input type="text" id="editDisplayName" required maxlength="30" placeholder="Ваше имя">
+        </div>
+        <div class="form-group">
+          <label>Город или район в Хакасии</label>
+          <select id="editCitySelect">
+            <option value="Абакан">г. Абакан</option>
+            <option value="Черногорск">г. Черногорск</option>
+            <option value="Саяногорск">г. Саяногорск</option>
+            <option value="Сорск">г. Сорск</option>
+            <option value="Абаза">г. Абаза</option>
+            <option value="Усть-Абаканский район">Усть-Абаканский район</option>
+            <option value="Ширинский район">Ширинский район</option>
+            <option value="Аскизский район">Аскизский район</option>
+            <option value="Таштыпский район">Таштыпский район</option>
+            <option value="Бейский район">Бейский район</option>
+            <option value="Боградский район">Боградский район</option>
+            <option value="Орджоникидзевский район">Орджоникидзевский район</option>
+            <option value="custom">✍️ Другой населённый пункт...</option>
+          </select>
+          <input type="text" id="editCityCustom" class="hidden" style="margin-top:8px;" placeholder="Введите ваш город или село...">
+        </div>
+        <div class="form-group">
+          <label>О себе</label>
+          <textarea id="editBio" rows="3" maxlength="250" placeholder="Расскажите о себе, интересах, увлечениях..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Статус / Мысль дня</label>
+          <input type="text" id="editStatusText" placeholder="Что нового? (например: На Саяно-Шушенской ГЭС ☀️)">
+        </div>
+        <div class="form-row" style="display:flex; gap:12px;">
+          <div class="form-group" style="flex:1;">
+            <label>Любимое место в Хакасии</label>
+            <input type="text" id="editFavoritePlace" placeholder="например: Озеро Белё, Сундуки">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Telegram</label>
+            <input type="text" id="editTelegram" placeholder="@username">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Дата рождения</label>
+          <input type="date" id="editBirthDate">
+        </div>
+        <div class="form-group" style="margin-top:10px; padding:12px 14px; background:rgba(255,255,255,0.04); border-radius:10px; border:1px solid var(--border-color);">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:0;">
+            <input type="checkbox" id="editIsPrivate" style="width:18px; height:18px; accent-color:#ffb800; cursor:pointer;">
+            <span style="font-weight:600; color:var(--text-main);">🔒 Закрытый профиль</span>
+          </label>
+          <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; margin-left:28px;">
+            Публикации и сохранённую музыку смогут видеть только ваши подтверждённые друзья
+          </p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelEdit">Отмена</button>
+          <button type="submit" class="btn-primary">Сохранить изменения ☀️</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CREATE CUSTOM CHAT MODAL -->
+  <div class="modal-backdrop hidden" id="createChannelModal">
+    <div class="modal" style="max-width:440px;">
+      <div class="modal-header">
+        <h3>➕ Создать беседку / чат</h3>
+        <button class="btn-icon-sm" id="btnCloseCreateChannel">✕</button>
+      </div>
+      <form id="createChannelForm">
+        <div class="form-group">
+          <label>Иконка беседки</label>
+          <div class="emoji-picker-row" id="channelEmojiPicker">
+            <span class="emoji-opt active" data-icon="💬">💬</span>
+            <span class="emoji-opt" data-icon="🌲">🌲</span>
+            <span class="emoji-opt" data-icon="🏔️">🏔️</span>
+            <span class="emoji-opt" data-icon="🎣">🎣</span>
+            <span class="emoji-opt" data-icon="🚗">🚗</span>
+            <span class="emoji-opt" data-icon="🎸">🎸</span>
+            <span class="emoji-opt" data-icon="☀️">☀️</span>
+            <span class="emoji-opt" data-icon="🦅">🦅</span>
+          </div>
+          <input type="hidden" id="newChannelIcon" value="💬">
+        </div>
+        <div class="form-group">
+          <label>Название чата</label>
+          <input type="text" id="newChannelName" placeholder="Например: Рыбалка в Хакасии, Автоклуб Абакан..." required maxlength="40">
+        </div>
+        <div class="form-group">
+          <label>Описание темы (необязательно)</label>
+          <textarea id="newChannelDesc" rows="2" placeholder="О чём эта беседка..." maxlength="120"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelCreateChannel">Отмена</button>
+          <button type="submit" class="btn-primary">Создать чат ✨</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- UPLOAD TRACK MODAL -->
+  <div class="modal-backdrop hidden" id="uploadTrackModal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3>🎵 Загрузить аудиозапись</h3>
+        <button class="btn-icon-sm" id="btnCloseUploadTrack">✕</button>
+      </div>
+      <form id="uploadTrackForm">
+        <div class="form-group">
+          <label>Аудиофайл (MP3, WAV, OGG, M4A)</label>
+          <input type="file" id="trackFileInput" accept="audio/*" required>
+        </div>
+        <div class="form-group">
+          <label>Название песни / трека</label>
+          <input type="text" id="trackTitleInput" placeholder="Название..." required maxlength="60">
+        </div>
+        <div class="form-group">
+          <label>Исполнитель / Автор</label>
+          <input type="text" id="trackArtistInput" placeholder="Исполнитель..." required maxlength="60">
+        </div>
+        <div class="form-group">
+          <label>Жанр / Категория</label>
+          <select id="trackGenreSelect">
+            <option value="Хакасия & Этника">Хакасия & Этника</option>
+            <option value="Релакс & Природа">Релакс & Природа</option>
+            <option value="Хакасия & Сибирь">Хакасия & Сибирь</option>
+            <option value="Поп & Танцевальная">Поп & Танцевальная</option>
+            <option value="Рок & Альтернатива">Рок & Альтернатива</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelUploadTrack">Отмена</button>
+          <button type="submit" class="btn-primary" id="btnSubmitUploadTrack">Опубликовать трек 🚀</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADJUST COVER POSITION MODAL -->
+  <div class="modal-backdrop hidden" id="adjustCoverModal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header">
+        <h3>📐 Настроить положение обложки</h3>
+        <button class="btn-icon-sm" id="btnCloseAdjustCover">✕</button>
+      </div>
+      <div style="padding:15px 0;">
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:14px;">
+          Выберите вертикальное выравнивание обложки профиля, чтобы надписи и фото смотрелись аккуратно:
+        </p>
+        <div class="cover-pos-presets">
+          <button type="button" class="btn-secondary cover-pos-btn" data-pos="center 5%">Верх (5%)</button>
+          <button type="button" class="btn-secondary cover-pos-btn" data-pos="center 20%">Сверху (20%)</button>
+          <button type="button" class="btn-secondary cover-pos-btn" data-pos="center 35%">По центру (35%)</button>
+          <button type="button" class="btn-secondary cover-pos-btn" data-pos="center 50%">Центр (50%)</button>
+          <button type="button" class="btn-secondary cover-pos-btn" data-pos="center 75%">Снизу (75%)</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="btnCancelAdjustCover">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOM CONFIRMATION MODAL (Замена браузерного confirm) -->
+  <div class="modal-backdrop hidden" id="customConfirmModal">
+    <div class="modal confirm-modal" style="max-width: 440px; text-align: center;">
+      <div class="confirm-icon-wrap" id="confirmIcon" style="font-size: 2.8rem; margin-bottom: 12px;">⚠️</div>
+      <h3 class="confirm-title" id="confirmTitle" style="margin-bottom: 8px;">Подтвердите действие</h3>
+      <p class="confirm-message" id="confirmMessage" style="font-size: 0.92rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 20px;">Вы уверены?</p>
+      <div class="modal-actions" style="justify-content: center; gap: 14px;">
+        <button type="button" class="btn-secondary" id="btnConfirmCancel" style="min-width: 120px;">Отмена</button>
+        <button type="button" class="btn-primary" id="btnConfirmOk" style="min-width: 140px; background: var(--accent-red);">Удалить 🗑️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMAGE LIGHTBOX MODAL -->
+  <div class="lightbox-modal hidden" id="imageLightbox">
+    <button class="btn-close-lightbox" id="btnCloseLightbox">✕</button>
+    <img id="lightboxImg" src="" alt="Fullscreen Preview">
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="/js/audio.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

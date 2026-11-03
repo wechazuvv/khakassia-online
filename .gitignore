@@ -1,0 +1,10 @@
+node_modules/
+*.log
+*.zip
+mingit/
+playit.exe
+bore.exe
+ngrok.exe
+cloudflared.exe
+.DS_Store
+Thumbs.db
