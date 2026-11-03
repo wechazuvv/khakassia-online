@@ -280,8 +280,12 @@ class SunnyKhakassiaApp {
     this.btnSendCircleRec = document.getElementById('btnSendCircleRec');
     this.btnRetakeCircleRec = document.getElementById('btnRetakeCircleRec');
     this.btnPickCircleFile = document.getElementById('btnPickCircleFile');
+    this.btnShootCircleNative = document.getElementById('btnShootCircleNative');
     this.videoCircleFileInput = document.getElementById('videoCircleFileInput');
+    this.videoCircleCameraInput = document.getElementById('videoCircleCameraInput');
     this.btnCloseVideoCircle = document.getElementById('btnCloseVideoCircle');
+    this.vkBottomNav = document.getElementById('vkBottomNav');
+    this.vkChatBadge = document.getElementById('vkChatBadge');
     this.chatReplyBar = document.getElementById('chatReplyBar');
     this.chatReplyText = document.getElementById('chatReplyText');
     this.btnCancelChatReply = document.getElementById('btnCancelChatReply');
@@ -464,7 +468,21 @@ class SunnyKhakassiaApp {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         if (tab === 'profile') {
-          this.openUserProfile(this.currentUser.username);
+          if (this.currentUser) this.openUserProfile(this.currentUser.username);
+          else this.switchTab('profile');
+        } else {
+          this.switchTab(tab);
+        }
+      });
+    });
+
+    // Mobile VK Bottom Nav tabs
+    document.querySelectorAll('.vk-bottom-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        if (tab === 'profile') {
+          if (this.currentUser) this.openUserProfile(this.currentUser.username);
+          else this.switchTab('profile');
         } else {
           this.switchTab(tab);
         }
@@ -535,7 +553,7 @@ class SunnyKhakassiaApp {
     this.btnAddPollOption.addEventListener('click', () => {
       const count = this.pollOptionsInputs.querySelectorAll('.poll-opt-input').length;
       if (count >= 5) {
-        alert('Максимум 5 вариантов ответа');
+        this.showToast('Максимум 5 вариантов ответа', 'warning');
         return;
       }
       const inp = document.createElement('input');
@@ -599,44 +617,89 @@ class SunnyKhakassiaApp {
 
     if (this.btnMediaToggle) {
       let pressTimer = null;
-      let isLongPress = false;
+      let pressStartTime = 0;
+      let isRecording = false;
+      let startX = 0;
+      let isCancelled = false;
 
-      const onStart = (e) => {
-        if (e.type === 'touchstart') e.preventDefault();
-        isLongPress = false;
-        pressTimer = setTimeout(() => {
-          isLongPress = true;
+      const handlePressStart = (e) => {
+        if (e.type === 'touchstart') {
+          startX = e.touches[0].clientX;
+        } else {
+          startX = e.clientX;
+        }
+        pressStartTime = Date.now();
+        isRecording = false;
+        isCancelled = false;
+
+        pressTimer = setTimeout(async () => {
+          isRecording = true;
           if (this.chatMediaMode === 'video') {
-            this.openVideoCircleModal();
-            setTimeout(() => this.startCircleRecording(), 350);
+            await this.openVideoCircleModal();
+            this.startCircleRecording();
           } else {
-            this.startVoiceRecording();
+            await this.startVoiceRecording();
           }
-        }, 350);
+        }, 280);
       };
 
-      const onEnd = () => {
+      const handlePressMove = (e) => {
+        if (!isRecording || isCancelled) return;
+        const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+        // Slide left > 60px to cancel (как в Telegram)
+        if (startX - currentX > 60) {
+          isCancelled = true;
+          if (this.chatMediaMode === 'voice') {
+            this.cancelVoiceRecording();
+          } else {
+            this.closeVideoCircleModal();
+          }
+          this.showToast('Запись отменена', 'info');
+        }
+      };
+
+      const handlePressEnd = async () => {
+        const pressDuration = Date.now() - pressStartTime;
         clearTimeout(pressTimer);
-        if (!isLongPress) {
-          // Single tap: toggle between voice and video
+
+        if (!isRecording && pressDuration < 280) {
+          // Одиночный тап: быстрое переключение между голосом и кружочком
           this.chatMediaMode = this.chatMediaMode === 'voice' ? 'video' : 'voice';
           if (this.mediaToggleIcon) {
             this.mediaToggleIcon.textContent = this.chatMediaMode === 'voice' ? '🎙️' : '📹';
           }
           this.showToast(this.chatMediaMode === 'voice' ? 'Режим: Голосовые сообщения 🎙️' : 'Режим: Видео-кружочки 📹', 'info');
-        } else {
-          // Hold released: send voice recording
+        } else if (isRecording && !isCancelled) {
+          // Отпустили зажатие: отправляем сообщение
           if (this.chatMediaMode === 'voice') {
-            this.sendVoiceRecording();
+            await this.sendVoiceRecording();
+          } else {
+            if (this.circleRecorder && this.circleRecorder.state === 'recording') {
+              this.stopCircleRecording();
+              setTimeout(() => {
+                if (this.circleRecordedBlob) {
+                  this.sendCircleVideo();
+                  this.closeVideoCircleModal();
+                }
+              }, 400);
+            }
           }
         }
+        isRecording = false;
       };
 
-      this.btnMediaToggle.addEventListener('mousedown', onStart);
-      this.btnMediaToggle.addEventListener('mouseup', onEnd);
-      this.btnMediaToggle.addEventListener('mouseleave', () => clearTimeout(pressTimer));
-      this.btnMediaToggle.addEventListener('touchstart', onStart, { passive: false });
-      this.btnMediaToggle.addEventListener('touchend', onEnd);
+      this.btnMediaToggle.addEventListener('mousedown', handlePressStart);
+      this.btnMediaToggle.addEventListener('mouseup', handlePressEnd);
+      this.btnMediaToggle.addEventListener('mouseleave', () => {
+        clearTimeout(pressTimer);
+        if (isRecording) {
+          if (this.chatMediaMode === 'voice') this.sendVoiceRecording();
+          isRecording = false;
+        }
+      });
+      this.btnMediaToggle.addEventListener('touchstart', handlePressStart, { passive: true });
+      this.btnMediaToggle.addEventListener('touchmove', handlePressMove, { passive: true });
+      this.btnMediaToggle.addEventListener('touchend', handlePressEnd);
     }
 
     // Video Circles in Chat (Кружочки как в Telegram)
@@ -665,6 +728,29 @@ class SunnyKhakassiaApp {
     }
     if (this.videoCircleFileInput) {
       this.videoCircleFileInput.addEventListener('change', (e) => this.handleUploadCircleFile(e));
+    }
+    if (this.btnShootCircleNative && this.videoCircleCameraInput) {
+      this.btnShootCircleNative.addEventListener('click', () => {
+        this.videoCircleCameraInput.click();
+      });
+      this.videoCircleCameraInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        this.circleRecordedBlob = file;
+        this.circleRecordedExt = file.name.split('.').pop() || 'mp4';
+        if (this.videoCirclePreview) {
+          this.videoCirclePreview.srcObject = null;
+          this.videoCirclePreview.src = URL.createObjectURL(file);
+          this.videoCirclePreview.muted = false;
+          this.videoCirclePreview.loop = true;
+          this.videoCirclePreview.play().catch(() => {});
+        }
+        if (this.btnStartCircleRec) this.btnStartCircleRec.classList.add('hidden');
+        if (this.btnStopCircleRec) this.btnStopCircleRec.classList.add('hidden');
+        if (this.btnSendCircleRec) this.btnSendCircleRec.classList.remove('hidden');
+        if (this.btnRetakeCircleRec) this.btnRetakeCircleRec.classList.remove('hidden');
+        this.showToast('Видео записано! Нажмите «Отправить кружочек».', 'success');
+      });
     }
 
     this.sideChatInviteBtn.addEventListener('click', () => this.switchTab('chat'));
@@ -708,17 +794,11 @@ class SunnyKhakassiaApp {
     this.btnCancelChatReply.addEventListener('click', () => this.cancelChatReply());
 
     this.subtabPosts.addEventListener('click', () => {
-      this.subtabPosts.classList.add('active');
-      this.subtabFriends.classList.remove('active');
-      this.profilePostsSubcontent.classList.remove('hidden');
-      this.profileFriendsSubcontent.classList.add('hidden');
+      this.switchProfileSubtab('posts');
     });
 
     this.subtabFriends.addEventListener('click', () => {
-      this.subtabFriends.classList.add('active');
-      this.subtabPosts.classList.remove('active');
-      this.profileFriendsSubcontent.classList.remove('hidden');
-      this.profilePostsSubcontent.classList.add('hidden');
+      this.switchProfileSubtab('friends');
     });
 
     this.btnUploadOwnAvatar.addEventListener('click', () => {
@@ -959,6 +1039,10 @@ class SunnyKhakassiaApp {
     this.currentTab = tabName;
 
     this.tabBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+
+    document.querySelectorAll('.vk-bottom-tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
 
@@ -1331,7 +1415,7 @@ class SunnyKhakassiaApp {
         `;
       }
     } catch (err) {
-      alert('Ошибка при загрузке: ' + err.message);
+      this.showToast('Ошибка при загрузке: ' + err.message, 'error');
       this.clearPostMedia();
     }
   }
@@ -1363,7 +1447,7 @@ class SunnyKhakassiaApp {
     }
 
     if (!content && !this.pendingPostMedia && !poll) {
-      alert('Пожалуйста, напишите текст, прикрепите фото/видео или создайте опрос!');
+      this.showToast('Пожалуйста, напишите текст, прикрепите фото/видео или создайте опрос!', 'warning');
       return;
     }
 
@@ -1398,7 +1482,7 @@ class SunnyKhakassiaApp {
       this.clearPostMedia();
       window.soundFX && window.soundFX.playSend();
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     } finally {
       this.btnPublishPost.disabled = false;
       this.btnPublishPost.textContent = 'Опубликовать 🚀';
@@ -1515,11 +1599,11 @@ class SunnyKhakassiaApp {
         </button>
 
         <button class="btn-post-action" title="Поделиться ссылкой" onclick="app.sharePost(${post.id})">
-          <span>🔗</span> Поделиться
+          <span>🔗</span> <span class="share-action-label">Поделиться</span>
         </button>
 
         <button class="btn-post-action btn-report-scam" title="Пожаловаться на мошенничество или спам" onclick="app.openReportModal('post', ${post.id})">
-          🚩 Пожаловаться
+          <span>🚩</span> <span class="report-action-label">Пожаловаться</span>
         </button>
       </div>
 
@@ -1600,7 +1684,7 @@ class SunnyKhakassiaApp {
       if (!res.ok) throw new Error(data.error || 'Ошибка голосования');
       this.onPollUpdated(postId, data.poll);
     } catch (e) {
-      alert(e.message);
+      this.showToast(e.message, 'error');
     }
   }
 
@@ -1624,7 +1708,7 @@ class SunnyKhakassiaApp {
         this.loadFeed();
       }
     } catch (e) {
-      alert('Ошибка при закреплении');
+      this.showToast('Ошибка при закреплении', 'error');
     }
   }
 
@@ -1677,7 +1761,7 @@ class SunnyKhakassiaApp {
         if (cntEl) cntEl.textContent = data.commentsCount;
       }
     } catch (e) {
-      alert('Ошибка при удалении комментария');
+      this.showToast('Ошибка при удалении комментария', 'error');
     }
   }
 
@@ -1727,7 +1811,7 @@ class SunnyKhakassiaApp {
       input.value = '';
       window.soundFX && window.soundFX.playSend();
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     }
   }
 
@@ -1763,16 +1847,16 @@ class SunnyKhakassiaApp {
       const el = document.getElementById(`post-${postId}`);
       if (el) el.remove();
     } catch (e) {
-      alert('Ошибка при удалении');
+      this.showToast('Ошибка при удалении', 'error');
     }
   }
 
   sharePost(postId) {
     const url = `${window.location.origin}/#post-${postId}`;
     navigator.clipboard.writeText(url).then(() => {
-      alert(`Ссылка на публикацию скопирована!\n${url}`);
+      this.showToast('Ссылка на публикацию скопирована! 🔗', 'success');
     }).catch(() => {
-      alert(`Ссылка: ${url}`);
+      this.showToast('Ссылка: ' + url, 'info');
     });
   }
 
@@ -1887,10 +1971,10 @@ class SunnyKhakassiaApp {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      alert(data.message || 'Жалоба успешно отправлена');
+      this.showToast(data.message || 'Жалоба успешно отправлена', 'success');
       this.reportModal.classList.add('hidden');
     } catch (err) {
-      alert('Не удалось отправить жалобу: ' + err.message);
+      this.showToast('Не удалось отправить жалобу: ' + err.message, 'error');
     }
   }
 
@@ -2149,10 +2233,10 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      alert(data.message || 'Статус верификации обновлен');
+      this.showToast(data.message || 'Статус верификации обновлен', 'success');
       this.renderAdminUsers();
     } catch (e) {
-      alert('Ошибка при изменении верификации');
+      this.showToast('Ошибка при изменении верификации', 'error');
     }
   }
 
@@ -2171,10 +2255,10 @@ class SunnyKhakassiaApp {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      alert(data.message || 'Роль обновлена');
+      this.showToast(data.message || 'Роль обновлена', 'success');
       this.renderAdminUsers();
     } catch (e) {
-      alert('Ошибка при изменении роли');
+      this.showToast('Ошибка при изменении роли', 'error');
     }
   }
 
@@ -2385,6 +2469,14 @@ class SunnyKhakassiaApp {
         btnEdit.innerHTML = '✏️ Редактировать профиль';
         btnEdit.onclick = () => this.openEditProfileModal();
         this.profileActionsContainer.appendChild(btnEdit);
+
+        const btnLogout = document.createElement('button');
+        btnLogout.className = 'btn-secondary btn-logout-action';
+        btnLogout.style.color = 'var(--accent-red)';
+        btnLogout.style.borderColor = 'rgba(255, 51, 71, 0.3)';
+        btnLogout.innerHTML = '🚪 Выйти из аккаунта';
+        btnLogout.onclick = () => this.handleLogout();
+        this.profileActionsContainer.appendChild(btnLogout);
       } else {
         const frStatus = data.friendship.status;
         const btnFriend = document.createElement('button');
@@ -2506,7 +2598,7 @@ class SunnyKhakassiaApp {
       }
 
     } catch (err) {
-      alert('Ошибка загрузки профиля: ' + err.message);
+      this.showToast('Ошибка загрузки профиля: ' + err.message, 'error');
     }
   }
 
@@ -3187,12 +3279,21 @@ class SunnyKhakassiaApp {
       const data = await res.json();
       const count = data.unreadCount || 0;
       this.chatUnreadTotal = count;
+      const badgeText = count > 99 ? '99+' : count;
       if (this.chatUnreadBadge) {
         if (count > 0) {
-          this.chatUnreadBadge.textContent = count > 99 ? '99+' : count;
+          this.chatUnreadBadge.textContent = badgeText;
           this.chatUnreadBadge.classList.remove('hidden');
         } else {
           this.chatUnreadBadge.classList.add('hidden');
+        }
+      }
+      if (this.vkChatBadge) {
+        if (count > 0) {
+          this.vkChatBadge.textContent = badgeText;
+          this.vkChatBadge.classList.remove('hidden');
+        } else {
+          this.vkChatBadge.classList.add('hidden');
         }
       }
     } catch (e) {}
@@ -3200,9 +3301,14 @@ class SunnyKhakassiaApp {
 
   incrementChatUnreadBadge() {
     this.chatUnreadTotal = (this.chatUnreadTotal || 0) + 1;
+    const badgeText = this.chatUnreadTotal > 99 ? '99+' : this.chatUnreadTotal;
     if (this.chatUnreadBadge) {
-      this.chatUnreadBadge.textContent = this.chatUnreadTotal > 99 ? '99+' : this.chatUnreadTotal;
+      this.chatUnreadBadge.textContent = badgeText;
       this.chatUnreadBadge.classList.remove('hidden');
+    }
+    if (this.vkChatBadge) {
+      this.vkChatBadge.textContent = badgeText;
+      this.vkChatBadge.classList.remove('hidden');
     }
   }
 
@@ -3309,7 +3415,7 @@ class SunnyKhakassiaApp {
         this.renderPinnedMessage(data.pinnedMessage);
       }
     } catch (e) {
-      alert('Ошибка при закреплении сообщения');
+      this.showToast('Ошибка при закреплении сообщения', 'error');
     }
   }
 
@@ -3326,7 +3432,7 @@ class SunnyKhakassiaApp {
       });
       this.chatPinnedBar.classList.add('hidden');
     } catch (e) {
-      alert('Ошибка при откреплении');
+      this.showToast('Ошибка при откреплении', 'error');
     }
   }
 
@@ -3397,25 +3503,28 @@ class SunnyKhakassiaApp {
   }
 
   appendChatMessageDOM(msg) {
-    const el = document.createElement('div');
-    el.className = 'comment-item';
-    el.style.padding = '8px 0';
-    el.id = `cmsg-${msg.id}`;
-
     const isMine = this.currentUser && msg.sender_id === this.currentUser.id;
     const isAdmin = this.currentUser && this.currentUser.role === 'admin';
     const time = new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
+    const el = document.createElement('div');
+    el.className = isMine ? 'comment-item mine' : 'comment-item';
+    el.style.padding = '8px 0';
+    el.id = `cmsg-${msg.id}`;
+
     let attHtml = '';
     if (msg.attachment_url) {
-      if (msg.attachment_type === 'circle' || (msg.attachment_name && msg.attachment_name.includes('Кружочек'))) {
+      const isCircle = msg.attachment_type === 'circle' || (msg.attachment_name && (msg.attachment_name.includes('Кружочек') || msg.attachment_name.startsWith('circle_')));
+      const isAudio = msg.attachment_type === 'audio' || (msg.attachment_name && (msg.attachment_name.includes('Голосовое') || msg.attachment_name.startsWith('voice_'))) || (msg.attachment_url && (msg.attachment_url.endsWith('.ogg') || msg.attachment_url.endsWith('.mp3') || msg.attachment_url.endsWith('.wav') || msg.attachment_url.endsWith('.m4a') || msg.attachment_url.endsWith('.aac') || msg.attachment_url.endsWith('.webm')));
+
+      if (isCircle) {
         attHtml = `
           <div class="chat-video-circle-wrap" onclick="app.togglePlayCircle(this)" title="Нажмите для воспроизведения со звуком">
             <video class="chat-video-circle" src="${msg.attachment_url}" playsinline preload="metadata" loop></video>
             <div class="chat-circle-play-overlay">▶</div>
           </div>
         `;
-      } else if (msg.attachment_type === 'audio' || msg.attachment_url.endsWith('.ogg') || msg.attachment_url.endsWith('.mp3') || msg.attachment_url.endsWith('.wav')) {
+      } else if (isAudio) {
         attHtml = `
           <div class="voice-audio-bubble">
             <audio controls src="${msg.attachment_url}" preload="metadata"></audio>
@@ -3493,7 +3602,7 @@ class SunnyKhakassiaApp {
         if (el) el.remove();
       }
     } catch (e) {
-      alert('Ошибка при удалении сообщения');
+      this.showToast('Ошибка при удалении сообщения', 'error');
     }
   }
 
@@ -3611,6 +3720,30 @@ class SunnyKhakassiaApp {
   }
 
   // ----------------- VIDEO CIRCLES (КРУЖОЧКИ КАК В TELEGRAM) -----------------
+  async initCameraStream() {
+    if (this.circleStream && this.circleStream.active) return this.circleStream;
+    const candidates = [
+      { video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: true },
+      { video: { facingMode: 'user' }, audio: true },
+      { video: true, audio: true },
+      { video: true, audio: false }
+    ];
+    for (const c of candidates) {
+      try {
+        this.circleStream = await navigator.mediaDevices.getUserMedia(c);
+        if (this.videoCirclePreview) {
+          this.videoCirclePreview.srcObject = this.circleStream;
+          this.videoCirclePreview.muted = true;
+          this.videoCirclePreview.play().catch(() => {});
+        }
+        return this.circleStream;
+      } catch (e) {
+        console.warn('getUserMedia candidate failed:', c, e.message);
+      }
+    }
+    return null;
+  }
+
   async openVideoCircleModal() {
     if (this.videoCircleModal) this.videoCircleModal.classList.remove('hidden');
     this.circleRecordedBlob = null;
@@ -3624,20 +3757,11 @@ class SunnyKhakassiaApp {
       this.videoCircleTimerTag.classList.add('hidden');
     }
 
-    try {
-      this.circleStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
-        audio: true
-      });
-      if (this.videoCirclePreview) {
-        this.videoCirclePreview.srcObject = this.circleStream;
-        this.videoCirclePreview.muted = true;
-        this.videoCirclePreview.play().catch(() => {});
-      }
-    } catch (err) {
-      console.warn('Camera not available for circle video:', err);
-      this.showToast('Камера не обнаружена. Вы можете выбрать видеофайл с устройства.', 'info');
+    const stream = await this.initCameraStream();
+    if (!stream) {
+      this.showToast('Камера не открылась автоматически. Нажмите «📱 Камера телефона» для съёмки.', 'info');
     }
+    return stream;
   }
 
   closeVideoCircleModal() {
@@ -3656,20 +3780,39 @@ class SunnyKhakassiaApp {
     if (this.videoCircleModal) this.videoCircleModal.classList.add('hidden');
   }
 
-  startCircleRecording() {
+  async startCircleRecording() {
+    if (!this.circleStream || !this.circleStream.active) {
+      await this.initCameraStream();
+    }
     if (!this.circleStream) {
-      this.showToast('Камера не активна. Выберите видеофайл кнопкой «Выбрать файл».', 'warning');
+      this.showToast('Камера не активна. Нажмите «📱 Камера телефона» для съёмки.', 'warning');
       return;
     }
 
     this.circleRecordedChunks = [];
-    try {
-      this.circleRecorder = new MediaRecorder(this.circleStream, { mimeType: 'video/webm;codecs=vp8,opus' });
-    } catch (e) {
+    let mimeType = '';
+    const preferredTypes = [
+      'video/mp4;codecs=avc1,mp4a.40.2',
+      'video/mp4',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+      ''
+    ];
+    for (const t of preferredTypes) {
+      try {
+        if (!t || (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t))) {
+          mimeType = t;
+          this.circleRecorder = t ? new MediaRecorder(this.circleStream, { mimeType: t }) : new MediaRecorder(this.circleStream);
+          break;
+        }
+      } catch(e){}
+    }
+
+    if (!this.circleRecorder) {
       try {
         this.circleRecorder = new MediaRecorder(this.circleStream);
-      } catch (err2) {
-        this.showToast('Запись видео не поддерживается браузером. Выберите файл.', 'error');
+      } catch(e) {
+        this.showToast('Запись не поддерживается браузером. Нажмите «📱 Камера телефона».', 'error');
         return;
       }
     }
@@ -3679,7 +3822,10 @@ class SunnyKhakassiaApp {
     };
 
     this.circleRecorder.onstop = () => {
-      this.circleRecordedBlob = new Blob(this.circleRecordedChunks, { type: 'video/webm' });
+      const mime = (this.circleRecorder && this.circleRecorder.mimeType) || 'video/mp4';
+      this.circleRecordedBlob = new Blob(this.circleRecordedChunks, { type: mime });
+      this.circleRecordedExt = mime.includes('webm') ? 'webm' : 'mp4';
+
       if (this.videoCirclePreview) {
         this.videoCirclePreview.srcObject = null;
         this.videoCirclePreview.src = URL.createObjectURL(this.circleRecordedBlob);
@@ -3687,6 +3833,7 @@ class SunnyKhakassiaApp {
         this.videoCirclePreview.loop = true;
         this.videoCirclePreview.play().catch(() => {});
       }
+      if (this.btnStartCircleRec) this.btnStartCircleRec.classList.add('hidden');
       if (this.btnStopCircleRec) this.btnStopCircleRec.classList.add('hidden');
       if (this.btnSendCircleRec) this.btnSendCircleRec.classList.remove('hidden');
       if (this.btnRetakeCircleRec) this.btnRetakeCircleRec.classList.remove('hidden');
@@ -3700,6 +3847,7 @@ class SunnyKhakassiaApp {
     if (this.videoCircleRing) this.videoCircleRing.classList.remove('hidden');
     if (this.videoCircleTimerTag) {
       this.videoCircleTimerTag.classList.remove('hidden');
+      clearInterval(this.circleTimerInterval);
       this.circleTimerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - this.circleRecordStartTime) / 1000);
         const m = Math.floor(elapsed / 60);
@@ -3715,7 +3863,7 @@ class SunnyKhakassiaApp {
   stopCircleRecording() {
     if (this.circleTimerInterval) clearInterval(this.circleTimerInterval);
     if (this.circleRecorder && this.circleRecorder.state !== 'inactive') {
-      this.circleRecorder.stop();
+      try { this.circleRecorder.stop(); } catch(e){}
     }
   }
 
@@ -3735,8 +3883,9 @@ class SunnyKhakassiaApp {
     }
 
     this.showToast('Отправка кружочка... 📹', 'info');
+    const ext = this.circleRecordedExt || (this.circleRecordedBlob.type && this.circleRecordedBlob.type.includes('webm') ? 'webm' : 'mp4');
     const fd = new FormData();
-    fd.append('file', this.circleRecordedBlob, `circle_${Date.now()}.webm`);
+    fd.append('file', this.circleRecordedBlob, `circle_${Date.now()}.${ext}`);
 
     try {
       const res = await fetch('/api/upload', {
@@ -3955,7 +4104,7 @@ class SunnyKhakassiaApp {
     if (!content && !this.pendingChatAttachment) return;
 
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      alert('Подключение к чату восстанавливается...');
+      this.showToast('Подключение к чату восстанавливается...', 'warning');
       return;
     }
 
@@ -3993,7 +4142,7 @@ class SunnyKhakassiaApp {
       this.pendingChatAttachment = data;
       this.chatAttachmentText.textContent = `📎 ${data.name}`;
     } catch (err) {
-      alert('Ошибка прикрепления файла: ' + err.message);
+      this.showToast('Ошибка прикрепления файла: ' + err.message, 'error');
       this.clearChatAttachment();
     }
   }
@@ -4047,7 +4196,7 @@ class SunnyKhakassiaApp {
         this.openUserProfile(this.currentUser.username);
       }
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     }
   }
 
@@ -4075,7 +4224,7 @@ class SunnyKhakassiaApp {
       }
       this.coverFileInput.value = '';
     } catch (err) {
-      alert('Ошибка при загрузке обложки: ' + err.message);
+      this.showToast('Ошибка при загрузке обложки: ' + err.message, 'error');
     }
   }
 
@@ -4144,7 +4293,7 @@ class SunnyKhakassiaApp {
       this.editProfileModal.classList.add('hidden');
       this.openUserProfile(this.currentUser.username);
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     }
   }
 
@@ -4741,7 +4890,7 @@ class SunnyKhakassiaApp {
   async handleUploadTrack(e) {
     e.preventDefault();
     const file = this.trackFileInput.files[0];
-    if (!file) return alert('Выберите аудиофайл');
+    if (!file) return this.showToast('Выберите аудиофайл', 'warning');
 
     const title = this.trackTitleInput.value.trim();
     const artist = this.trackArtistInput.value.trim();
@@ -4770,11 +4919,11 @@ class SunnyKhakassiaApp {
 
       this.uploadTrackModal.classList.add('hidden');
       this.uploadTrackForm.reset();
-      alert('Трек успешно опубликован и добавлен в вашу музыку! 🎵');
+      this.showToast('Трек успешно опубликован и добавлен в вашу музыку! 🎵', 'success');
       this.loadMusicList();
       window.soundFX && window.soundFX.playSend();
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -4818,7 +4967,7 @@ class SunnyKhakassiaApp {
     const description = this.newChannelDesc.value.trim();
     const icon = this.newChannelIcon.value.trim() || '💬';
 
-    if (!name) return alert('Введите название чата');
+    if (!name) return this.showToast('Введите название чата', 'warning');
 
     try {
       const res = await fetch('/api/channels', {
@@ -4839,7 +4988,7 @@ class SunnyKhakassiaApp {
       this.switchChannel(data.channel);
       window.soundFX && window.soundFX.playSend();
     } catch (err) {
-      alert(err.message);
+      this.showToast(err.message, 'error');
     }
   }
 
@@ -4989,14 +5138,14 @@ class SunnyKhakassiaApp {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('Пользователь добавлен в чёрный список');
+      this.showToast('Пользователь добавлен в чёрный список', 'success');
       if (this.activeProfileUser) {
         this.openUserProfile(this.activeProfileUser.username);
       } else {
         this.loadFriendsTab();
       }
     } catch (e) {
-      alert(e.message || 'Ошибка блокировки');
+      this.showToast(e.message || 'Ошибка блокировки', 'error');
     }
   }
 
@@ -5008,12 +5157,12 @@ class SunnyKhakassiaApp {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      alert('Пользователь разблокирован');
+      this.showToast('Пользователь разблокирован', 'success');
       if (this.activeProfileUser) {
         this.openUserProfile(this.activeProfileUser.username);
       }
     } catch (e) {
-      alert(e.message || 'Ошибка');
+      this.showToast(e.message || 'Ошибка', 'error');
     }
   }
 

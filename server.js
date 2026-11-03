@@ -1240,18 +1240,28 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
   }
 
   const fileUrl = '/uploads/' + req.file.filename;
-  const isVideo = req.file.mimetype.startsWith('video/');
-  const isImage = req.file.mimetype.startsWith('image/');
-  const isAudio = req.file.mimetype.startsWith('audio/') || 
-                  req.file.originalname.endsWith('.webm') || 
-                  req.file.originalname.endsWith('.ogg') || 
-                  req.file.originalname.endsWith('.mp3') ||
-                  req.file.originalname.endsWith('.wav');
+  const originalName = req.file.originalname || '';
+  const isCircle = originalName.startsWith('circle_');
+  const isVoice = originalName.startsWith('voice_');
 
   let type = 'file';
-  if (isVideo) type = 'video';
-  else if (isImage) type = 'image';
-  else if (isAudio) type = 'audio';
+  if (isCircle) {
+    type = 'circle';
+  } else if (isVoice) {
+    type = 'audio';
+  } else if (req.file.mimetype.startsWith('audio/') || 
+             originalName.endsWith('.mp3') || 
+             originalName.endsWith('.ogg') || 
+             originalName.endsWith('.wav') || 
+             originalName.endsWith('.m4a') || 
+             originalName.endsWith('.aac') ||
+             originalName.endsWith('.opus')) {
+    type = 'audio';
+  } else if (req.file.mimetype.startsWith('image/')) {
+    type = 'image';
+  } else if (req.file.mimetype.startsWith('video/') || originalName.endsWith('.mp4') || originalName.endsWith('.mov') || originalName.endsWith('.webm')) {
+    type = 'video';
+  }
 
   res.json({
     url: fileUrl,

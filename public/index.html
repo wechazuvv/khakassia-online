@@ -632,6 +632,31 @@
 
     </main>
 
+    <!-- MOBILE VK BOTTOM NAVIGATION BAR -->
+    <nav class="vk-bottom-nav" id="vkBottomNav" aria-label="Мобильная навигация">
+      <button type="button" class="vk-bottom-tab active" data-tab="feed" id="vkTabFeed">
+        <span class="vk-bottom-icon">📰</span>
+        <span class="vk-bottom-label">Лента</span>
+      </button>
+      <button type="button" class="vk-bottom-tab" data-tab="chat" id="vkTabChat">
+        <span class="vk-bottom-icon">💬</span>
+        <span class="vk-bottom-label">Мессенджер</span>
+        <span class="vk-bottom-badge hidden" id="vkChatBadge">0</span>
+      </button>
+      <button type="button" class="vk-bottom-tab" data-tab="music" id="vkTabMusic">
+        <span class="vk-bottom-icon">🎵</span>
+        <span class="vk-bottom-label">Музыка</span>
+      </button>
+      <button type="button" class="vk-bottom-tab" data-tab="people" id="vkTabPeople">
+        <span class="vk-bottom-icon">👥</span>
+        <span class="vk-bottom-label">Люди</span>
+      </button>
+      <button type="button" class="vk-bottom-tab" data-tab="profile" id="vkTabProfile">
+        <span class="vk-bottom-icon">👤</span>
+        <span class="vk-bottom-label">Профиль</span>
+      </button>
+    </nav>
+
   </div>
 
   <!-- ========================================================
@@ -1064,11 +1089,13 @@
         <div class="video-circle-timer-tag hidden" id="videoCircleTimerTag">00:00</div>
       </div>
       <input type="file" id="videoCircleFileInput" accept="video/*" class="hidden">
+      <input type="file" id="videoCircleCameraInput" accept="video/*" capture="user" class="hidden">
       <div class="circle-controls" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px;">
         <button type="button" class="btn-primary" id="btnStartCircleRec" style="background: linear-gradient(135deg, #ef4444, #dc2626);">🔴 Начать запись</button>
         <button type="button" class="btn-primary hidden" id="btnStopCircleRec" style="background: #f59e0b;">⏹️ Остановить</button>
         <button type="button" class="btn-primary hidden" id="btnSendCircleRec">🚀 Отправить кружочек</button>
         <button type="button" class="btn-secondary hidden" id="btnRetakeCircleRec">🔄 Перезаписать</button>
+        <button type="button" class="btn-secondary" id="btnShootCircleNative" style="background: #0077ff; color: #fff;">📱 Камера телефона</button>
         <button type="button" class="btn-secondary" id="btnPickCircleFile" title="Выбрать видеофайл с устройства">📁 Выбрать файл</button>
       </div>
     </div>
