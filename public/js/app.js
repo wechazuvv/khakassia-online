@@ -186,6 +186,10 @@ class SunnyKhakassiaApp {
     this.profileAnthemArtist = document.getElementById('profileAnthemArtist');
     this.btnProfileAnthemPlay = document.getElementById('btnProfileAnthemPlay');
     this.btnRemoveProfileAnthem = document.getElementById('btnRemoveProfileAnthem');
+    this.profileTgMusicStatus = document.getElementById('profileTgMusicStatus');
+    this.profileTgMusicArtist = document.getElementById('profileTgMusicArtist');
+    this.profileTgMusicTitle = document.getElementById('profileTgMusicTitle');
+    this.profileModeratorBadge = document.getElementById('profileModeratorBadge');
     this.profileStatPosts = document.getElementById('profileStatPosts');
     this.profileStatFriends = document.getElementById('profileStatFriends');
     this.profileStatMusicBox = document.getElementById('profileStatMusicBox');
@@ -212,6 +216,9 @@ class SunnyKhakassiaApp {
     this.incomingRequestsSection = document.getElementById('incomingRequestsSection');
     this.incomingCount = document.getElementById('incomingCount');
     this.incomingRequestsGrid = document.getElementById('incomingRequestsGrid');
+    this.outgoingRequestsSection = document.getElementById('outgoingRequestsSection');
+    this.outgoingCount = document.getElementById('outgoingCount');
+    this.outgoingRequestsGrid = document.getElementById('outgoingRequestsGrid');
     this.myFriendsCount = document.getElementById('myFriendsCount');
     this.myFriendsGrid = document.getElementById('myFriendsGrid');
     this.allUsersGrid = document.getElementById('allUsersGrid');
@@ -257,6 +264,18 @@ class SunnyKhakassiaApp {
     this.chatMessageInput = document.getElementById('chatMessageInput');
     this.chatFileInput = document.getElementById('chatFileInput');
     this.btnChatAttach = document.getElementById('btnChatAttach');
+    this.btnChatCircle = document.getElementById('btnChatCircle');
+    this.videoCircleModal = document.getElementById('videoCircleModal');
+    this.videoCirclePreview = document.getElementById('videoCirclePreview');
+    this.videoCircleRing = document.getElementById('videoCircleRing');
+    this.videoCircleTimerTag = document.getElementById('videoCircleTimerTag');
+    this.btnStartCircleRec = document.getElementById('btnStartCircleRec');
+    this.btnStopCircleRec = document.getElementById('btnStopCircleRec');
+    this.btnSendCircleRec = document.getElementById('btnSendCircleRec');
+    this.btnRetakeCircleRec = document.getElementById('btnRetakeCircleRec');
+    this.btnPickCircleFile = document.getElementById('btnPickCircleFile');
+    this.videoCircleFileInput = document.getElementById('videoCircleFileInput');
+    this.btnCloseVideoCircle = document.getElementById('btnCloseVideoCircle');
     this.chatReplyBar = document.getElementById('chatReplyBar');
     this.chatReplyText = document.getElementById('chatReplyText');
     this.btnCancelChatReply = document.getElementById('btnCancelChatReply');
@@ -556,6 +575,34 @@ class SunnyKhakassiaApp {
     this.btnCancelVoice.addEventListener('click', () => this.cancelVoiceRecording());
     this.btnSendVoice.addEventListener('click', () => this.sendVoiceRecording());
 
+    // Video Circles in Chat (Кружочки как в Telegram)
+    if (this.btnChatCircle) {
+      this.btnChatCircle.addEventListener('click', () => this.openVideoCircleModal());
+    }
+    if (this.btnCloseVideoCircle) {
+      this.btnCloseVideoCircle.addEventListener('click', () => this.closeVideoCircleModal());
+    }
+    if (this.btnStartCircleRec) {
+      this.btnStartCircleRec.addEventListener('click', () => this.startCircleRecording());
+    }
+    if (this.btnStopCircleRec) {
+      this.btnStopCircleRec.addEventListener('click', () => this.stopCircleRecording());
+    }
+    if (this.btnSendCircleRec) {
+      this.btnSendCircleRec.addEventListener('click', () => this.sendCircleVideo());
+    }
+    if (this.btnRetakeCircleRec) {
+      this.btnRetakeCircleRec.addEventListener('click', () => this.retakeCircleVideo());
+    }
+    if (this.btnPickCircleFile) {
+      this.btnPickCircleFile.addEventListener('click', () => {
+        if (this.videoCircleFileInput) this.videoCircleFileInput.click();
+      });
+    }
+    if (this.videoCircleFileInput) {
+      this.videoCircleFileInput.addEventListener('change', (e) => this.handleUploadCircleFile(e));
+    }
+
     this.sideChatInviteBtn.addEventListener('click', () => this.switchTab('chat'));
 
     if (this.chatGeneralChannelBtn) {
@@ -807,7 +854,11 @@ class SunnyKhakassiaApp {
   }
 
   // ----------------- TABS NAVIGATION & URL ROUTING -----------------
-  switchTab(tabName, pushState = true) {
+  switchTab(tabName, pushState = true, options = {}) {
+    if (typeof pushState === 'object') {
+      options = pushState;
+      pushState = true;
+    }
     this.currentTab = tabName;
 
     this.tabBtns.forEach(btn => {
@@ -844,7 +895,9 @@ class SunnyKhakassiaApp {
       this.loadChannels();
       this.loadChatDms();
       this.updateChatHeaderActions();
-      this.loadChatMessages();
+      if (!options.skipLoadMessages) {
+        this.loadChatMessages();
+      }
       if (this.currentChatChannelId === 1) {
         this.chatUnreadTotal = 0;
         if (this.chatUnreadBadge) this.chatUnreadBadge.classList.add('hidden');
@@ -2084,11 +2137,16 @@ class SunnyKhakassiaApp {
 
       const isMe = this.currentUser && u.id === this.currentUser.id;
       const isAdmin = this.currentUser && this.currentUser.role === 'admin';
-      const isCreator = u.username === 'wechazuv' || u.role === 'admin';
+      const isCreator = (u.username === 'wechazuv');
+      const isModerator = (u.role === 'admin' && !isCreator);
 
       if (this.profileCreatorBadge) {
         this.profileCreatorBadge.classList.toggle('hidden', !isCreator);
       }
+      if (this.profileModeratorBadge) {
+        this.profileModeratorBadge.classList.toggle('hidden', !isModerator);
+      }
+
       const coverGroup = document.querySelector('.cover-buttons-group');
       if (coverGroup) {
         coverGroup.classList.toggle('hidden', !isMe);
@@ -2101,6 +2159,25 @@ class SunnyKhakassiaApp {
       }
       if (this.profileCoverImg && u.cover_position) {
         this.profileCoverImg.style.objectPosition = u.cover_position;
+      }
+
+      // Telegram-Style Music Status (как в Telegram)
+      if (this.profileTgMusicStatus) {
+        if (u.profile_music) {
+          try {
+            const m = typeof u.profile_music === 'string' ? JSON.parse(u.profile_music) : u.profile_music;
+            if (this.profileTgMusicArtist) this.profileTgMusicArtist.textContent = m.artist || 'Музыкант';
+            if (this.profileTgMusicTitle) this.profileTgMusicTitle.textContent = m.title || 'Песня';
+            this.profileTgMusicStatus.classList.remove('hidden');
+            this.profileTgMusicStatus.onclick = () => {
+              this.playTrack(m);
+            };
+          } catch (e) {
+            this.profileTgMusicStatus.classList.add('hidden');
+          }
+        } else {
+          this.profileTgMusicStatus.classList.add('hidden');
+        }
       }
 
       // Profile Anthem
@@ -2192,6 +2269,52 @@ class SunnyKhakassiaApp {
           btnBan.onclick = () => this.banScammerUser(u.id, 'Мошенничество');
           this.profileActionsContainer.appendChild(btnBan);
         }
+
+        // Кнопка Создателя: Назначить / снять модератора
+        const isMeCreator = this.currentUser && (this.currentUser.username === 'wechazuv' || this.currentUser.role === 'admin');
+        if (isMeCreator) {
+          const btnToggleMod = document.createElement('button');
+          btnToggleMod.className = 'btn-secondary';
+          btnToggleMod.innerHTML = u.role === 'admin' ? '🛡️ Снять модератора' : '🛡️ Сделать модератором';
+          btnToggleMod.onclick = async () => {
+            try {
+              const res = await fetch(`/api/admin/toggle-admin/${u.id}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${this.token}` }
+              });
+              const d = await res.json();
+              if (d.success) {
+                this.showToast(d.role === 'admin' ? `Пользователь @${u.username} теперь модератор! 🛡️` : `Статус модератора снят с @${u.username}`, 'success');
+                this.openUserProfile(u.username);
+              } else {
+                this.showToast(d.error || 'Ошибка', 'error');
+              }
+            } catch (e) {
+              this.showToast('Ошибка при изменении роли', 'error');
+            }
+          };
+          this.profileActionsContainer.appendChild(btnToggleMod);
+
+          const btnToggleVer = document.createElement('button');
+          btnToggleVer.className = 'btn-secondary';
+          btnToggleVer.innerHTML = u.is_verified ? '✔️ Снять галочку' : '✔️ Выдать верификацию';
+          btnToggleVer.onclick = async () => {
+            try {
+              const res = await fetch(`/api/admin/verify/${u.id}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${this.token}` }
+              });
+              const d = await res.json();
+              if (d.success) {
+                this.showToast(d.message || 'Статус верификации изменен', 'success');
+                this.openUserProfile(u.username);
+              }
+            } catch (e) {
+              this.showToast('Ошибка при верификации', 'error');
+            }
+          };
+          this.profileActionsContainer.appendChild(btnToggleVer);
+        }
       }
 
       // Private profile gate
@@ -2277,7 +2400,9 @@ class SunnyKhakassiaApp {
       });
       const data = await res.json();
       const incoming = data.incoming || [];
+      const outgoing = data.outgoing || [];
 
+      // 1. Входящие заявки
       if (incoming.length > 0) {
         if (this.friendsRequestsBadge) {
           this.friendsRequestsBadge.textContent = incoming.length;
@@ -2315,6 +2440,45 @@ class SunnyKhakassiaApp {
       } else {
         if (this.friendsRequestsBadge) this.friendsRequestsBadge.classList.add('hidden');
         if (this.incomingRequestsSection) this.incomingRequestsSection.classList.add('hidden');
+      }
+
+      // 2. Отправленные заявки (исходящие)
+      if (this.outgoingRequestsSection) {
+        if (outgoing.length > 0) {
+          this.outgoingRequestsSection.classList.remove('hidden');
+          if (this.outgoingCount) this.outgoingCount.textContent = outgoing.length;
+
+          if (this.outgoingRequestsGrid) {
+            this.outgoingRequestsGrid.innerHTML = '';
+            outgoing.forEach(req => {
+              const card = document.createElement('div');
+              card.className = 'user-card-item';
+              card.innerHTML = `
+                <div class="user-card-top" onclick="app.openUserProfile('${req.username}')">
+                  <div class="user-pill-avatar" id="out-av-${req.id}" style="width:44px; height:44px;">👤</div>
+                  <div class="user-card-details">
+                    <span class="user-card-name">
+                      ${this.escapeHTML(req.display_name)}
+                      ${req.is_verified ? '<span class="verified-badge">✔️</span>' : ''}
+                    </span>
+                    <span class="user-card-handle">@${this.escapeHTML(req.username)}</span>
+                    <span class="user-card-city">📍 ${this.escapeHTML(req.city || 'Хакасия')}</span>
+                  </div>
+                </div>
+                <div class="user-card-actions">
+                  <button class="btn-secondary" style="flex:1; color:var(--text-dim);" onclick="app.removeFriend(${req.id})" title="Нажмите, чтобы отозвать заявку">
+                    ⏳ Заявка ожидает (Отменить)
+                  </button>
+                  <button class="btn-secondary" onclick="app.openUserProfile('${req.username}')">Профиль</button>
+                </div>
+              `;
+              this.outgoingRequestsGrid.appendChild(card);
+              this.renderAvatarInto(req.avatar, card.querySelector(`#out-av-${req.id}`));
+            });
+          }
+        } else {
+          this.outgoingRequestsSection.classList.add('hidden');
+        }
       }
     } catch (e) {}
   }
@@ -2356,11 +2520,23 @@ class SunnyKhakassiaApp {
       this.allUsersGrid.innerHTML = '<div class="spinner"></div>';
       let url = '/api/users';
       if (query) url += `?q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${this.token}` }
-      });
-      const data = await res.json();
-      let users = (data.users || []).filter(u => this.currentUser && u.id !== this.currentUser.id);
+
+      // Загружаем список пользователей и текущие связи (друзья, входящие и исходящие заявки)
+      const [usersRes, friendsRes] = await Promise.all([
+        fetch(url, { headers: { 'Authorization': `Bearer ${this.token}` } }),
+        fetch('/api/friends', { headers: { 'Authorization': `Bearer ${this.token}` } })
+      ]);
+      const data = await usersRes.json();
+      const frData = await friendsRes.json();
+
+      // Исключаем: самого себя, уже друзей, отправленные заявки и полученные заявки
+      const excludedIds = new Set();
+      if (this.currentUser) excludedIds.add(this.currentUser.id);
+      (frData.friends || []).forEach(f => excludedIds.add(f.id));
+      (frData.incoming || []).forEach(f => excludedIds.add(f.id));
+      (frData.outgoing || []).forEach(f => excludedIds.add(f.id));
+
+      let users = (data.users || []).filter(u => !excludedIds.has(u.id));
 
       if (city && city !== 'all') {
         const cLower = city.toLowerCase();
@@ -2706,6 +2882,9 @@ class SunnyKhakassiaApp {
   switchChannel(ch) {
     this.currentChatChannelId = ch.id;
     this.currentChatDmUserId = null;
+    const chatLayout = document.querySelector('.chat-layout');
+    if (chatLayout) chatLayout.classList.add('mobile-chat-open');
+
     document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
     const el = document.getElementById(`chat-channel-${ch.id}`);
     if (el) el.classList.add('active');
@@ -2776,9 +2955,12 @@ class SunnyKhakassiaApp {
   }
 
   startDmWithUser(user) {
-    this.switchTab('chat');
     this.currentChatChannelId = null;
     this.currentChatDmUserId = user.id;
+    this.switchTab('chat', { skipLoadMessages: true });
+
+    const chatLayout = document.querySelector('.chat-layout');
+    if (chatLayout) chatLayout.classList.add('mobile-chat-open');
 
     document.querySelectorAll('.chat-channel-item').forEach(el => el.classList.remove('active'));
     const activeItem = document.getElementById(`dm-item-${user.id}`);
@@ -2850,20 +3032,44 @@ class SunnyKhakassiaApp {
   }
 
   async loadChatMessages() {
+    this.chatReqSeq = (this.chatReqSeq || 0) + 1;
+    const reqSeq = this.chatReqSeq;
+    const targetChannelId = this.currentChatChannelId;
+    const targetDmUserId = this.currentChatDmUserId;
+
     this.chatMessagesList.innerHTML = '<div class="spinner"></div>';
     try {
       let url = '/api/messages?limit=60';
-      if (this.currentChatChannelId) url += `&channelId=${this.currentChatChannelId}`;
-      else if (this.currentChatDmUserId) url += `&dmUserId=${this.currentChatDmUserId}`;
+      if (targetDmUserId) {
+        url += `&dmUserId=${targetDmUserId}`;
+      } else {
+        url += `&channelId=${targetChannelId || 1}`;
+      }
 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${this.token}` } });
       const data = await res.json();
+
+      // Защита от состояния гонки: если пользователь уже переключился на другой диалог/чат, отбрасываем устаревший ответ
+      if (reqSeq !== this.chatReqSeq || targetChannelId !== this.currentChatChannelId || targetDmUserId !== this.currentChatDmUserId) {
+        return;
+      }
+
       this.chatMessages = data.messages || [];
 
       this.chatMessagesList.innerHTML = '';
-      this.chatMessages.forEach(msg => {
-        this.appendChatMessageDOM(msg);
-      });
+      if (this.chatMessages.length === 0) {
+        this.chatMessagesList.innerHTML = `
+          <div class="empty-chat-placeholder">
+            <div style="font-size:2.5rem; margin-bottom:8px;">💬</div>
+            <div style="font-size:0.95rem; font-weight:600; color:var(--text-main);">Пока нет сообщений</div>
+            <div style="font-size:0.8rem; margin-top:4px;">Напишите первым и начните беседу!</div>
+          </div>
+        `;
+      } else {
+        this.chatMessages.forEach(msg => {
+          this.appendChatMessageDOM(msg);
+        });
+      }
       this.scrollChatBottom();
       this.loadChannelPinnedMessage();
     } catch (e) {
@@ -3027,7 +3233,14 @@ class SunnyKhakassiaApp {
 
     let attHtml = '';
     if (msg.attachment_url) {
-      if (msg.attachment_type === 'audio' || msg.attachment_url.endsWith('.webm') || msg.attachment_url.endsWith('.ogg') || msg.attachment_url.endsWith('.mp3') || msg.attachment_url.endsWith('.wav')) {
+      if (msg.attachment_type === 'circle' || (msg.attachment_name && msg.attachment_name.includes('Кружочек'))) {
+        attHtml = `
+          <div class="chat-video-circle-wrap" onclick="app.togglePlayCircle(this)" title="Нажмите для воспроизведения со звуком">
+            <video class="chat-video-circle" src="${msg.attachment_url}" playsinline preload="metadata" loop></video>
+            <div class="chat-circle-play-overlay">▶</div>
+          </div>
+        `;
+      } else if (msg.attachment_type === 'audio' || msg.attachment_url.endsWith('.ogg') || msg.attachment_url.endsWith('.mp3') || msg.attachment_url.endsWith('.wav')) {
         attHtml = `
           <div class="voice-audio-bubble">
             <audio controls src="${msg.attachment_url}" preload="metadata"></audio>
@@ -3041,17 +3254,21 @@ class SunnyKhakassiaApp {
     }
 
     let msgContentHtml = '';
-    const stickerMatch = msg.content && msg.content.match(/^\[sticker:(.*?)\|(.*?)\]$/);
-    if (stickerMatch) {
-      const [, sEmoji, sTag] = stickerMatch;
-      msgContentHtml = `
-        <div class="chat-sticker-bubble">
-          <span class="sticker-big-emoji">${sEmoji}</span>
-          <span class="sticker-tag">${this.escapeHTML(sTag)}</span>
-        </div>
-      `;
+    if (msg.attachment_type === 'circle' && msg.content === '📹 Кружочек (видеосообщение)') {
+      msgContentHtml = ''; // В кружочках не показываем лишний текст, как в Telegram
     } else {
-      msgContentHtml = `<div class="comment-text">${this.formatMessageText(msg.content)}</div>`;
+      const stickerMatch = msg.content && msg.content.match(/^\[sticker:(.*?)\|(.*?)\]$/);
+      if (stickerMatch) {
+        const [, sEmoji, sTag] = stickerMatch;
+        msgContentHtml = `
+          <div class="chat-sticker-bubble">
+            <span class="sticker-big-emoji">${sEmoji}</span>
+            <span class="sticker-tag">${this.escapeHTML(sTag)}</span>
+          </div>
+        `;
+      } else {
+        msgContentHtml = `<div class="comment-text">${this.formatMessageText(msg.content)}</div>`;
+      }
     }
 
     el.innerHTML = `
@@ -3189,6 +3406,222 @@ class SunnyKhakassiaApp {
     }
   }
 
+  // ----------------- VIDEO CIRCLES (КРУЖОЧКИ КАК В TELEGRAM) -----------------
+  async openVideoCircleModal() {
+    if (this.videoCircleModal) this.videoCircleModal.classList.remove('hidden');
+    this.circleRecordedBlob = null;
+    if (this.btnStartCircleRec) this.btnStartCircleRec.classList.remove('hidden');
+    if (this.btnStopCircleRec) this.btnStopCircleRec.classList.add('hidden');
+    if (this.btnSendCircleRec) this.btnSendCircleRec.classList.add('hidden');
+    if (this.btnRetakeCircleRec) this.btnRetakeCircleRec.classList.add('hidden');
+    if (this.videoCircleRing) this.videoCircleRing.classList.add('hidden');
+    if (this.videoCircleTimerTag) {
+      this.videoCircleTimerTag.textContent = '00:00';
+      this.videoCircleTimerTag.classList.add('hidden');
+    }
+
+    try {
+      this.circleStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
+        audio: true
+      });
+      if (this.videoCirclePreview) {
+        this.videoCirclePreview.srcObject = this.circleStream;
+        this.videoCirclePreview.muted = true;
+        this.videoCirclePreview.play().catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Camera not available for circle video:', err);
+      this.showToast('Камера не обнаружена. Вы можете выбрать видеофайл с устройства.', 'info');
+    }
+  }
+
+  closeVideoCircleModal() {
+    if (this.circleRecorder && this.circleRecorder.state !== 'inactive') {
+      try { this.circleRecorder.stop(); } catch(e){}
+    }
+    if (this.circleTimerInterval) clearInterval(this.circleTimerInterval);
+    if (this.circleStream) {
+      this.circleStream.getTracks().forEach(t => t.stop());
+      this.circleStream = null;
+    }
+    if (this.videoCirclePreview) {
+      this.videoCirclePreview.srcObject = null;
+      this.videoCirclePreview.src = '';
+    }
+    if (this.videoCircleModal) this.videoCircleModal.classList.add('hidden');
+  }
+
+  startCircleRecording() {
+    if (!this.circleStream) {
+      this.showToast('Камера не активна. Выберите видеофайл кнопкой «Выбрать файл».', 'warning');
+      return;
+    }
+
+    this.circleRecordedChunks = [];
+    try {
+      this.circleRecorder = new MediaRecorder(this.circleStream, { mimeType: 'video/webm;codecs=vp8,opus' });
+    } catch (e) {
+      try {
+        this.circleRecorder = new MediaRecorder(this.circleStream);
+      } catch (err2) {
+        this.showToast('Запись видео не поддерживается браузером. Выберите файл.', 'error');
+        return;
+      }
+    }
+
+    this.circleRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) this.circleRecordedChunks.push(e.data);
+    };
+
+    this.circleRecorder.onstop = () => {
+      this.circleRecordedBlob = new Blob(this.circleRecordedChunks, { type: 'video/webm' });
+      if (this.videoCirclePreview) {
+        this.videoCirclePreview.srcObject = null;
+        this.videoCirclePreview.src = URL.createObjectURL(this.circleRecordedBlob);
+        this.videoCirclePreview.muted = false;
+        this.videoCirclePreview.loop = true;
+        this.videoCirclePreview.play().catch(() => {});
+      }
+      if (this.btnStopCircleRec) this.btnStopCircleRec.classList.add('hidden');
+      if (this.btnSendCircleRec) this.btnSendCircleRec.classList.remove('hidden');
+      if (this.btnRetakeCircleRec) this.btnRetakeCircleRec.classList.remove('hidden');
+      if (this.videoCircleRing) this.videoCircleRing.classList.add('hidden');
+    };
+
+    this.circleRecorder.start(250);
+    this.circleRecordStartTime = Date.now();
+    if (this.btnStartCircleRec) this.btnStartCircleRec.classList.add('hidden');
+    if (this.btnStopCircleRec) this.btnStopCircleRec.classList.remove('hidden');
+    if (this.videoCircleRing) this.videoCircleRing.classList.remove('hidden');
+    if (this.videoCircleTimerTag) {
+      this.videoCircleTimerTag.classList.remove('hidden');
+      this.circleTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - this.circleRecordStartTime) / 1000);
+        const m = Math.floor(elapsed / 60);
+        const s = elapsed % 60;
+        this.videoCircleTimerTag.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        if (elapsed >= 60) {
+          this.stopCircleRecording();
+        }
+      }, 500);
+    }
+  }
+
+  stopCircleRecording() {
+    if (this.circleTimerInterval) clearInterval(this.circleTimerInterval);
+    if (this.circleRecorder && this.circleRecorder.state !== 'inactive') {
+      this.circleRecorder.stop();
+    }
+  }
+
+  retakeCircleVideo() {
+    if (this.videoCirclePreview) {
+      this.videoCirclePreview.src = '';
+      this.videoCirclePreview.loop = false;
+    }
+    this.openVideoCircleModal();
+  }
+
+  async sendCircleVideo() {
+    if (!this.circleRecordedBlob) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.showToast('Подключение к чату восстанавливается...', 'warning');
+      return;
+    }
+
+    this.showToast('Отправка кружочка... 📹', 'info');
+    const fd = new FormData();
+    fd.append('file', this.circleRecordedBlob, `circle_${Date.now()}.webm`);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.token}` },
+        body: fd
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      this.ws.send(JSON.stringify({
+        type: 'send_message',
+        channelId: this.currentChatDmUserId ? null : this.currentChatChannelId,
+        receiverId: this.currentChatDmUserId || null,
+        content: '📹 Кружочек (видеосообщение)',
+        attachment: {
+          url: data.url,
+          name: 'Кружочек',
+          type: 'circle'
+        }
+      }));
+
+      window.soundFX && window.soundFX.playSend();
+      this.closeVideoCircleModal();
+    } catch (err) {
+      this.showToast('Ошибка загрузки кружочка: ' + err.message, 'error');
+    }
+  }
+
+  async handleUploadCircleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    this.showToast('Отправка видеосообщения... 📹', 'info');
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.token}` },
+        body: fd
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      this.ws.send(JSON.stringify({
+        type: 'send_message',
+        channelId: this.currentChatDmUserId ? null : this.currentChatChannelId,
+        receiverId: this.currentChatDmUserId || null,
+        content: '📹 Кружочек (видеосообщение)',
+        attachment: {
+          url: data.url,
+          name: 'Кружочек',
+          type: 'circle'
+        }
+      }));
+
+      window.soundFX && window.soundFX.playSend();
+      this.closeVideoCircleModal();
+    } catch (err) {
+      this.showToast('Ошибка загрузки: ' + err.message, 'error');
+    }
+  }
+
+  togglePlayCircle(wrapEl) {
+    const video = wrapEl.querySelector('video');
+    if (!video) return;
+    if (video.paused) {
+      document.querySelectorAll('.chat-video-circle-wrap video').forEach(v => {
+        if (v !== video) {
+          v.pause();
+          v.closest('.chat-video-circle-wrap')?.classList.remove('playing');
+        }
+      });
+      video.muted = false;
+      video.play().then(() => {
+        wrapEl.classList.add('playing');
+      }).catch(() => {
+        video.muted = true;
+        video.play();
+        wrapEl.classList.add('playing');
+      });
+    } else {
+      video.pause();
+      wrapEl.classList.remove('playing');
+    }
+  }
+
   onNewChatMessage(msg) {
     const myId = this.currentUser ? this.currentUser.id : null;
     const isFromMe = (msg.sender_id === myId);
@@ -3197,12 +3630,14 @@ class SunnyKhakassiaApp {
     const isCurrentChannel = (
       this.currentTab === 'chat' &&
       this.currentChatChannelId &&
-      msg.channel_id === this.currentChatChannelId
+      !this.currentChatDmUserId &&
+      Number(msg.channel_id) === Number(this.currentChatChannelId)
     );
 
     const isCurrentDm = (
       this.currentTab === 'chat' &&
-      this.currentChatDmUserId && (
+      this.currentChatDmUserId &&
+      !msg.channel_id && (
         (msg.sender_id === this.currentChatDmUserId && msg.receiver_id === myId) ||
         (msg.sender_id === myId && msg.receiver_id === this.currentChatDmUserId)
       )
@@ -3210,6 +3645,8 @@ class SunnyKhakassiaApp {
 
     // 1. Сообщение внутри открытого диалога
     if (isCurrentChannel || isCurrentDm) {
+      const emptyPl = this.chatMessagesList.querySelector('.empty-chat-placeholder');
+      if (emptyPl) emptyPl.remove();
       this.appendChatMessageDOM(msg);
       this.scrollChatBottom();
       if (!isFromMe) {
@@ -3869,12 +4306,12 @@ class SunnyKhakassiaApp {
         const data = await res.json();
         tracks = data.tracks || [];
       } else {
-        // Загрузка локальных или популярных онлайн-треков
-        const res = await fetch('/api/music', { headers: { 'Authorization': `Bearer ${this.token}` } });
+        // Загрузка популярных новинок и горячих хитов чарта
+        const res = await fetch('/api/music/trending', { headers: { 'Authorization': `Bearer ${this.token}` } });
         const data = await res.json();
         tracks = data.tracks || [];
         if (tracks.length === 0) {
-          const resFallback = await fetch('/api/music/search?q=Хакасия', { headers: { 'Authorization': `Bearer ${this.token}` } });
+          const resFallback = await fetch('/api/music/search?q=MACAN', { headers: { 'Authorization': `Bearer ${this.token}` } });
           const dataFallback = await resFallback.json();
           tracks = dataFallback.tracks || [];
         }

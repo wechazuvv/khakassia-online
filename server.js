@@ -1369,24 +1369,7 @@ app.get('/api/messages', authMiddleware, (req, res) => {
 
     let messages = [];
 
-    if (channelId) {
-      messages = db.prepare(`
-        SELECT m.*, 
-               u.username as sender_username, 
-               u.display_name as sender_display_name, 
-               u.avatar as sender_avatar,
-               u.is_verified as sender_is_verified,
-               r.content as reply_content,
-               ru.display_name as reply_sender_name
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        LEFT JOIN messages r ON m.reply_to_id = r.id
-        LEFT JOIN users ru ON r.sender_id = ru.id
-        WHERE m.channel_id = ?
-        ORDER BY m.id DESC
-        LIMIT ?
-      `).all(channelId, fetchLimit);
-    } else if (dmUserId) {
+    if (dmUserId) {
       const myId = req.user.id;
       const otherId = Number(dmUserId);
 
@@ -1402,10 +1385,28 @@ app.get('/api/messages', authMiddleware, (req, res) => {
         JOIN users u ON m.sender_id = u.id
         LEFT JOIN messages r ON m.reply_to_id = r.id
         LEFT JOIN users ru ON r.sender_id = ru.id
-        WHERE ((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))
+        WHERE m.channel_id IS NULL AND ((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))
         ORDER BY m.id DESC
         LIMIT ?
       `).all(myId, otherId, otherId, myId, fetchLimit);
+    } else {
+      const targetChannelId = Number(channelId) || 1;
+      messages = db.prepare(`
+        SELECT m.*, 
+               u.username as sender_username, 
+               u.display_name as sender_display_name, 
+               u.avatar as sender_avatar,
+               u.is_verified as sender_is_verified,
+               r.content as reply_content,
+               ru.display_name as reply_sender_name
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        LEFT JOIN messages r ON m.reply_to_id = r.id
+        LEFT JOIN users ru ON r.sender_id = ru.id
+        WHERE m.channel_id = ?
+        ORDER BY m.id DESC
+        LIMIT ?
+      `).all(targetChannelId, fetchLimit);
     }
 
     res.json({ messages: messages.reverse() });
@@ -1592,6 +1593,59 @@ app.get('/api/music', authMiddleware, (req, res) => {
   } catch (err) {
     console.error('Fetch music error:', err);
     res.status(500).json({ error: 'Ошибка получения музыки' });
+  }
+});
+
+// Популярные новинки и чарт музыки
+app.get('/api/music/trending', authMiddleware, async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const trendingQueries = ['MACAN', 'Miyagi', 'ANNA ASTI', 'NEWLIGHTCHILD', 'Xcho'];
+    const fetchPromises = trendingQueries.map(async (query) => {
+      try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=4`;
+        const resp = await fetch(url);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        return data.results || [];
+      } catch (err) {
+        return [];
+      }
+    });
+
+    const resultsArray = await Promise.all(fetchPromises);
+    const rawResults = resultsArray.flat();
+
+    const savedTracks = db.prepare('SELECT audio_url FROM tracks WHERE id IN (SELECT track_id FROM user_saved_tracks WHERE user_id = ?)').all(myId);
+    const savedUrls = new Set(savedTracks.map(st => st.audio_url));
+
+    const tracks = rawResults.map(item => {
+      const durMs = item.trackTimeMillis || 180000;
+      const totalSec = Math.floor(durMs / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      const durationStr = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+      const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '400x400bb') : '/images/khakassia-banner.jpg';
+
+      return {
+        id: `online_${item.trackId}`,
+        itunes_id: item.trackId,
+        title: item.trackName || 'Без названия',
+        artist: item.artistName || 'Неизвестный исполнитель',
+        audio_url: item.previewUrl,
+        cover_url: cover,
+        duration: durationStr,
+        genre: item.primaryGenreName || 'Новинки',
+        is_online: true,
+        is_saved: savedUrls.has(item.previewUrl),
+        uploader_name: 'Чарт'
+      };
+    }).filter(item => item.audio_url);
+
+    res.json({ tracks });
+  } catch (err) {
+    console.error('Music trending error:', err);
+    res.status(500).json({ error: 'Ошибка получения новинок музыки' });
   }
 });
 
@@ -1875,8 +1929,13 @@ wss.on('connection', (ws) => {
         const attUrl = attachment ? attachment.url : null;
         const attName = attachment ? attachment.name : null;
         const attType = attachment ? attachment.type : null;
-        const targetChannel = channelId ? Number(channelId) : null;
-        const targetReceiver = receiverId ? Number(receiverId) : null;
+        let targetChannel = channelId ? Number(channelId) : null;
+        let targetReceiver = receiverId ? Number(receiverId) : null;
+        if (targetReceiver) {
+          targetChannel = null;
+        } else if (targetChannel) {
+          targetReceiver = null;
+        }
 
         const insert = db.prepare(`
           INSERT INTO messages (sender_id, channel_id, receiver_id, content, attachment_url, attachment_name, attachment_type, reply_to_id)

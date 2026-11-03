@@ -398,6 +398,7 @@
                 <button type="button" class="btn-input-action" id="btnChatAttach" title="Прикрепить файл">📎</button>
                 <button type="button" class="btn-input-action" id="btnChatStickers" title="Стикеры Хакасии ☀️">🎭</button>
                 <button type="button" class="btn-input-action btn-voice-record" id="btnChatVoice" title="Записать голосовое сообщение">🎙️</button>
+                <button type="button" class="btn-input-action btn-circle-record-btn" id="btnChatCircle" title="Записать видео-кружочек (как в Telegram)">📹</button>
                 <textarea 
                   id="chatMessageInput" 
                   rows="1" 
@@ -510,6 +511,11 @@
             <div class="users-grid" id="incomingRequestsGrid"></div>
           </div>
 
+          <div class="friends-section hidden" id="outgoingRequestsSection">
+            <h3 class="friends-section-title">⏳ Отправленные заявки / Вы подали заявку (<span id="outgoingCount">0</span>)</h3>
+            <div class="users-grid" id="outgoingRequestsGrid"></div>
+          </div>
+
           <div class="friends-section">
             <h3 class="friends-section-title">🤝 Список друзей (<span id="myFriendsCount">0</span>)</h3>
             <div class="users-grid" id="myFriendsGrid"></div>
@@ -547,9 +553,21 @@
                 <div class="profile-names">
                   <h2 id="profileDisplayName">Имя Фамилия</h2>
                   <span class="creator-badge hidden" id="profileCreatorBadge" title="Создатель и владелец портала Хакасия Онлайн">👑 Создатель сайта</span>
+                  <span class="moderator-badge hidden" id="profileModeratorBadge" title="Официальный модератор сообщества">🛡️ Модератор</span>
                   <span class="verified-badge hidden" id="profileVerifiedBadge" title="Проверенный официальный аккаунт">✔️</span>
                   <span class="profile-handle" id="profileHandle">@username</span>
                   <span class="banned-badge hidden" id="profileBannedBadge">🚫 ЗАБЛОКИРОВАН</span>
+                </div>
+
+                <!-- Telegram-Style Music Status (как в Telegram) -->
+                <div class="tg-music-status hidden" id="profileTgMusicStatus" title="Нажмите, чтобы включить музыку">
+                  <span class="tg-music-icon">🎵</span>
+                  <span class="tg-music-body">
+                    <span class="tg-music-artist" id="profileTgMusicArtist">NEWLIGHTCHILD</span>
+                    <span class="tg-music-sep">–</span>
+                    <span class="tg-music-title" id="profileTgMusicTitle">SELFHARM</span>
+                  </span>
+                  <span class="tg-music-arrow">〉</span>
                 </div>
                 <div class="profile-city-line">
                   <span class="city-icon">📍</span>
@@ -1033,6 +1051,29 @@
       </div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="btnCancelInviteFriends">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIDEO CIRCLE RECORD MODAL (Кружочки как в Telegram) -->
+  <div class="modal-backdrop hidden" id="videoCircleModal">
+    <div class="modal video-circle-modal" style="max-width: 380px; text-align: center;">
+      <div class="modal-header">
+        <h3>📹 Кружочек (видеосообщение)</h3>
+        <button type="button" class="btn-icon-sm" id="btnCloseVideoCircle">✕</button>
+      </div>
+      <div class="video-circle-wrapper" style="margin: 16px auto; position: relative; width: 220px; height: 220px;">
+        <video id="videoCirclePreview" autoplay muted playsinline style="width: 220px; height: 220px; border-radius: 50%; object-fit: cover; border: 3px solid var(--solar-gold); background: #000; display: block;"></video>
+        <div class="video-circle-ring hidden" id="videoCircleRing"></div>
+        <div class="video-circle-timer-tag hidden" id="videoCircleTimerTag">00:00</div>
+      </div>
+      <input type="file" id="videoCircleFileInput" accept="video/*" class="hidden">
+      <div class="circle-controls" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px;">
+        <button type="button" class="btn-primary" id="btnStartCircleRec" style="background: linear-gradient(135deg, #ef4444, #dc2626);">🔴 Начать запись</button>
+        <button type="button" class="btn-primary hidden" id="btnStopCircleRec" style="background: #f59e0b;">⏹️ Остановить</button>
+        <button type="button" class="btn-primary hidden" id="btnSendCircleRec">🚀 Отправить кружочек</button>
+        <button type="button" class="btn-secondary hidden" id="btnRetakeCircleRec">🔄 Перезаписать</button>
+        <button type="button" class="btn-secondary" id="btnPickCircleFile" title="Выбрать видеофайл с устройства">📁 Выбрать файл</button>
       </div>
     </div>
   </div>
