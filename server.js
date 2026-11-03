@@ -28,6 +28,25 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Global safety net for network stream aborts, client disconnects and undici errors
+process.on('uncaughtException', (err) => {
+  if (err && (
+    err.code === 'UND_ERR_RES_CONTENT_LENGTH_MISMATCH' || 
+    err.code === 'ECONNRESET' || 
+    err.code === 'EPIPE' ||
+    err.message?.includes('terminated') || 
+    err.message?.includes('aborted')
+  )) {
+    console.warn('[Stream Warning Handled]:', err.message);
+    return;
+  }
+  console.error('[Uncaught Exception]:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Unhandled Rejection Handled]:', reason && reason.message ? reason.message : reason);
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Directories setup
@@ -1699,9 +1718,23 @@ app.get('/api/music/proxy-stream', async (req, res) => {
       res.setHeader('accept-ranges', 'bytes');
     }
 
-    Readable.fromWeb(upstreamRes.body).pipe(res);
+    const readable = Readable.fromWeb(upstreamRes.body);
+    readable.on('error', (streamErr) => {
+      // Client disconnected or upstream ended early - safely close stream
+      if (!res.headersSent) {
+        try { res.status(500).end(); } catch(e){}
+      } else {
+        try { res.end(); } catch(e){}
+      }
+    });
+
+    req.on('close', () => {
+      try { readable.destroy(); } catch(e){}
+    });
+
+    readable.pipe(res);
   } catch (err) {
-    console.error('Audio proxy stream error:', err);
+    console.error('Audio proxy stream error:', err.message);
     if (!res.headersSent) res.status(500).send('Stream error');
   }
 });
